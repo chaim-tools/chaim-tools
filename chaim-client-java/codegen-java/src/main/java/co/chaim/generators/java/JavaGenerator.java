@@ -101,8 +101,40 @@ public class JavaGenerator {
         "software.amazon.awssdk.enhanced.dynamodb", "DynamoDbIndex");
     private static final ClassName QUERY_CONDITIONAL = ClassName.get(
         "software.amazon.awssdk.enhanced.dynamodb.model", "QueryConditional");
+    private static final ClassName QUERY_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "QueryEnhancedRequest");
+    private static final ClassName GET_ITEM_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "GetItemEnhancedRequest");
+    private static final ClassName PUT_ITEM_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "PutItemEnhancedRequest");
+    private static final ClassName DELETE_ITEM_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "DeleteItemEnhancedRequest");
+    private static final ClassName UPDATE_ITEM_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "UpdateItemEnhancedRequest");
+    private static final ClassName SCAN_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "ScanEnhancedRequest");
+    private static final ClassName EXPRESSION = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb", "Expression");
+    private static final ClassName READ_BATCH = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "ReadBatch");
+    private static final ClassName WRITE_BATCH = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "WriteBatch");
+    private static final ClassName BATCH_GET_ITEM_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "BatchGetItemEnhancedRequest");
+    private static final ClassName BATCH_WRITE_ITEM_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "BatchWriteItemEnhancedRequest");
+    private static final ClassName TRANSACT_GET_ITEMS_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "TransactGetItemsEnhancedRequest");
+    private static final ClassName TRANSACT_WRITE_ITEMS_ENHANCED_REQUEST = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "TransactWriteItemsEnhancedRequest");
+    private static final ClassName PAGE_ITERABLE = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "PageIterable");
+    private static final ClassName BATCH_WRITE_RESULT = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.model", "BatchWriteResult");
     private static final ClassName DYNAMO_DB_CLIENT = ClassName.get(
         "software.amazon.awssdk.services.dynamodb", "DynamoDbClient");
+    private static final ClassName DYNAMO_DB_CLIENT_BUILDER = ClassName.get(
+        "software.amazon.awssdk.services.dynamodb", "DynamoDbClientBuilder");
     private static final ClassName REGION = ClassName.get(
         "software.amazon.awssdk.regions", "Region");
 
@@ -565,20 +597,25 @@ public class JavaGenerator {
         ParameterizedTypeName listOfEntity = ParameterizedTypeName.get(
             ClassName.get("java.util", "List"), entityClass);
 
+        ParameterizedTypeName tableSchemaType = ParameterizedTypeName.get(TABLE_SCHEMA, entityClass);
+
         TypeSpec.Builder tb = TypeSpec.classBuilder(repoClassName)
             .addModifiers(Modifier.PUBLIC)
-            .addJavadoc("Repository for $L entity with key-based operations.\n", entityName)
+            .addJavadoc("Repository for $L entity with full DynamoDB Enhanced Client parity.\n", entityName)
             .addJavadoc("Partition key: $L\n", pkFieldName)
             .addJavadoc(hasSortKey ? "Sort key: $L\n" : "No sort key.\n", skFieldName)
-            .addJavadoc("Validates constraints before save. No scan operations by default.\n");
+            .addJavadoc("Validates constraints before save/update.\n");
 
         tb.addField(FieldSpec.builder(tableType, "table", Modifier.PRIVATE, Modifier.FINAL).build());
+        tb.addField(FieldSpec.builder(DYNAMO_DB_ENHANCED_CLIENT, "enhancedClient", Modifier.PRIVATE, Modifier.FINAL).build());
+        tb.addField(FieldSpec.builder(tableSchemaType, "tableSchema", Modifier.PRIVATE, Modifier.FINAL).build());
 
         tb.addMethod(MethodSpec.constructorBuilder()
             .addModifiers(Modifier.PUBLIC)
             .addParameter(clientClass, "client")
-            .addStatement("this.table = client.getEnhancedClient()\n.table(client.getTableName(), $T.fromBean($T.class))",
-                TABLE_SCHEMA, entityClass)
+            .addStatement("this.tableSchema = $T.fromBean($T.class)", TABLE_SCHEMA, entityClass)
+            .addStatement("this.enhancedClient = client.getEnhancedClient()")
+            .addStatement("this.table = this.enhancedClient.table(client.getTableName(), this.tableSchema)")
             .build());
 
         tb.addMethod(MethodSpec.constructorBuilder()
@@ -586,16 +623,137 @@ public class JavaGenerator {
             .addJavadoc("Constructor for dependency injection and testing.\n")
             .addParameter(DYNAMO_DB_ENHANCED_CLIENT, "enhancedClient")
             .addParameter(String.class, "tableName")
-            .addStatement("this.table = enhancedClient.table(tableName, $T.fromBean($T.class))",
-                TABLE_SCHEMA, entityClass)
+            .addStatement("this.tableSchema = $T.fromBean($T.class)", TABLE_SCHEMA, entityClass)
+            .addStatement("this.enhancedClient = enhancedClient")
+            .addStatement("this.table = enhancedClient.table(tableName, this.tableSchema)")
             .build());
 
+        // Accessors for escape-hatch access to underlying Enhanced Client objects
+        tb.addMethod(MethodSpec.methodBuilder("getTable")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Access the underlying DynamoDbTable for operations not covered by this repository.\n")
+            .returns(tableType)
+            .addStatement("return table")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("getEnhancedClient")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Access the underlying DynamoDbEnhancedClient for cross-table or advanced operations.\n")
+            .returns(DYNAMO_DB_ENHANCED_CLIENT)
+            .addStatement("return enhancedClient")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("getTableSchema")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Access the TableSchema for this entity.\n")
+            .returns(tableSchemaType)
+            .addStatement("return tableSchema")
+            .build());
+
+        // --- Save (putItem) ---
         tb.addMethod(MethodSpec.methodBuilder("save")
             .addModifiers(Modifier.PUBLIC)
             .addJavadoc("Save entity to DynamoDB. Validates constraints before persisting.\n")
             .addParameter(entityClass, "entity")
             .addStatement("$T.validate(entity)", validatorClass)
             .addStatement("table.putItem(entity)")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("save")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Save entity with a condition expression (optimistic locking).\n")
+            .addParameter(entityClass, "entity")
+            .addParameter(EXPRESSION, "conditionExpression")
+            .addStatement("$T.validate(entity)", validatorClass)
+            .addStatement("table.putItem($T.builder($T.class).item(entity).conditionExpression(conditionExpression).build())",
+                PUT_ITEM_ENHANCED_REQUEST, entityClass)
+            .build());
+
+        ParameterizedTypeName putItemReqType = ParameterizedTypeName.get(PUT_ITEM_ENHANCED_REQUEST, entityClass);
+        tb.addMethod(MethodSpec.methodBuilder("save")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Save with full control via PutItemEnhancedRequest.\n")
+            .addParameter(putItemReqType, "request")
+            .addStatement("table.putItem(request)")
+            .build());
+
+        // --- Update (updateItem) ---
+        tb.addMethod(MethodSpec.methodBuilder("update")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Update entity in DynamoDB. Validates constraints before persisting.\n")
+            .addParameter(entityClass, "entity")
+            .returns(entityClass)
+            .addStatement("$T.validate(entity)", validatorClass)
+            .addStatement("return table.updateItem(entity)")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("update")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Update entity with a condition expression (optimistic locking).\n")
+            .addParameter(entityClass, "entity")
+            .addParameter(EXPRESSION, "conditionExpression")
+            .returns(entityClass)
+            .addStatement("$T.validate(entity)", validatorClass)
+            .addStatement("return table.updateItem($T.builder($T.class).item(entity).conditionExpression(conditionExpression).build())",
+                UPDATE_ITEM_ENHANCED_REQUEST, entityClass)
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("update")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Update entity with ignoreNulls for partial updates (null fields are not removed).\n")
+            .addParameter(entityClass, "entity")
+            .addParameter(boolean.class, "ignoreNulls")
+            .returns(entityClass)
+            .addStatement("$T.validate(entity)", validatorClass)
+            .addStatement("return table.updateItem($T.builder($T.class).item(entity).ignoreNulls(ignoreNulls).build())",
+                UPDATE_ITEM_ENHANCED_REQUEST, entityClass)
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("update")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Update entity with condition expression and ignoreNulls.\n")
+            .addParameter(entityClass, "entity")
+            .addParameter(EXPRESSION, "conditionExpression")
+            .addParameter(boolean.class, "ignoreNulls")
+            .returns(entityClass)
+            .addStatement("$T.validate(entity)", validatorClass)
+            .addStatement("return table.updateItem($T.builder($T.class).item(entity).conditionExpression(conditionExpression).ignoreNulls(ignoreNulls).build())",
+                UPDATE_ITEM_ENHANCED_REQUEST, entityClass)
+            .build());
+
+        ParameterizedTypeName updateItemReqType = ParameterizedTypeName.get(UPDATE_ITEM_ENHANCED_REQUEST, entityClass);
+        tb.addMethod(MethodSpec.methodBuilder("update")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Update with full control via UpdateItemEnhancedRequest.\n")
+            .addParameter(updateItemReqType, "request")
+            .returns(entityClass)
+            .addStatement("return table.updateItem(request)")
+            .build());
+
+        ClassName optionalClass = ClassName.get("java.util", "Optional");
+        ParameterizedTypeName listOfString = ParameterizedTypeName.get(
+            ClassName.get("java.util", "List"), ClassName.get(String.class));
+        ParameterizedTypeName listOfKey = ParameterizedTypeName.get(
+            ClassName.get("java.util", "List"), KEY);
+        ParameterizedTypeName pageIterableOfEntity = ParameterizedTypeName.get(PAGE_ITERABLE, entityClass);
+        // DeleteItemEnhancedRequest and GetItemEnhancedRequest are not generic in the Enhanced Client
+
+        // findByKey pass-through (works regardless of key structure)
+        tb.addMethod(MethodSpec.methodBuilder("findByKey")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Find entity with full control via GetItemEnhancedRequest.\n")
+            .addParameter(GET_ITEM_ENHANCED_REQUEST, "request")
+            .returns(optionalEntity)
+            .addStatement("return $T.ofNullable(table.getItem(request))", optionalClass)
+            .build());
+
+        // delete pass-through (works regardless of key structure)
+        tb.addMethod(MethodSpec.methodBuilder("delete")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Delete with full control via DeleteItemEnhancedRequest. Returns the old item if it existed.\n")
+            .addParameter(DELETE_ITEM_ENHANCED_REQUEST, "request")
+            .returns(optionalEntity)
+            .addStatement("return $T.ofNullable(table.deleteItem(request))", optionalClass)
             .build());
 
         if (hasSortKey) {
@@ -606,7 +764,31 @@ public class JavaGenerator {
                 .addParameter(String.class, skCodeName)
                 .returns(optionalEntity)
                 .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
-                .addStatement("return $T.ofNullable(table.getItem(key))", ClassName.get("java.util", "Optional"))
+                .addStatement("return $T.ofNullable(table.getItem(key))", optionalClass)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("findByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Find entity with consistent read option.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(String.class, skCodeName)
+                .addParameter(boolean.class, "consistentRead")
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
+                .addStatement("return $T.ofNullable(table.getItem($T.builder().key(key).consistentRead(consistentRead).build()))",
+                    optionalClass, GET_ITEM_ENHANCED_REQUEST)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("findByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Find entity with projection (only fetch specified attributes).\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(String.class, skCodeName)
+                .addParameter(listOfString, "attributesToProject")
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
+                .addStatement("return $T.ofNullable(table.getItem($T.builder().key(key).attributesToProject(attributesToProject).build()))",
+                    optionalClass, GET_ITEM_ENHANCED_REQUEST)
                 .build());
 
             tb.addMethod(MethodSpec.methodBuilder("deleteByKey")
@@ -617,6 +799,50 @@ public class JavaGenerator {
                 .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
                 .addStatement("table.deleteItem(key)")
                 .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("deleteByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Delete entity with a condition expression.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(String.class, skCodeName)
+                .addParameter(EXPRESSION, "conditionExpression")
+                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
+                .addStatement("table.deleteItem($T.builder().key(key).conditionExpression(conditionExpression).build())",
+                    DELETE_ITEM_ENHANCED_REQUEST)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("deleteAndReturn")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Delete entity and return the old item if it existed.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(String.class, skCodeName)
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
+                .addStatement("return $T.ofNullable(table.deleteItem(key))", optionalClass)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("deleteAndReturn")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Delete entity with condition, returning old item if it existed.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(String.class, skCodeName)
+                .addParameter(EXPRESSION, "conditionExpression")
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
+                .addStatement("return $T.ofNullable(table.deleteItem($T.builder().key(key).conditionExpression(conditionExpression).build()))",
+                    optionalClass, DELETE_ITEM_ENHANCED_REQUEST)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("existsByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Check if entity exists by key (lightweight, uses projection).\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(String.class, skCodeName)
+                .returns(boolean.class)
+                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
+                .addStatement("return table.getItem($T.builder().key(key).attributesToProject($S).build()) != null",
+                    GET_ITEM_ENHANCED_REQUEST, pkFieldName)
+                .build());
         } else {
             tb.addMethod(MethodSpec.methodBuilder("findByKey")
                 .addModifiers(Modifier.PUBLIC)
@@ -624,7 +850,29 @@ public class JavaGenerator {
                 .addParameter(String.class, pkCodeName)
                 .returns(optionalEntity)
                 .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
-                .addStatement("return $T.ofNullable(table.getItem(key))", ClassName.get("java.util", "Optional"))
+                .addStatement("return $T.ofNullable(table.getItem(key))", optionalClass)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("findByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Find entity with consistent read option.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(boolean.class, "consistentRead")
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
+                .addStatement("return $T.ofNullable(table.getItem($T.builder().key(key).consistentRead(consistentRead).build()))",
+                    optionalClass, GET_ITEM_ENHANCED_REQUEST)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("findByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Find entity with projection (only fetch specified attributes).\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(listOfString, "attributesToProject")
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
+                .addStatement("return $T.ofNullable(table.getItem($T.builder().key(key).attributesToProject(attributesToProject).build()))",
+                    optionalClass, GET_ITEM_ENHANCED_REQUEST)
                 .build());
 
             tb.addMethod(MethodSpec.methodBuilder("deleteByKey")
@@ -634,21 +882,244 @@ public class JavaGenerator {
                 .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
                 .addStatement("table.deleteItem(key)")
                 .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("deleteByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Delete entity with a condition expression.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(EXPRESSION, "conditionExpression")
+                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
+                .addStatement("table.deleteItem($T.builder().key(key).conditionExpression(conditionExpression).build())",
+                    DELETE_ITEM_ENHANCED_REQUEST)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("deleteAndReturn")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Delete entity and return the old item if it existed.\n")
+                .addParameter(String.class, pkCodeName)
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
+                .addStatement("return $T.ofNullable(table.deleteItem(key))", optionalClass)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("deleteAndReturn")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Delete entity with condition, returning old item if it existed.\n")
+                .addParameter(String.class, pkCodeName)
+                .addParameter(EXPRESSION, "conditionExpression")
+                .returns(optionalEntity)
+                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
+                .addStatement("return $T.ofNullable(table.deleteItem($T.builder().key(key).conditionExpression(conditionExpression).build()))",
+                    optionalClass, DELETE_ITEM_ENHANCED_REQUEST)
+                .build());
+
+            tb.addMethod(MethodSpec.methodBuilder("existsByKey")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Check if entity exists by key (lightweight, uses projection).\n")
+                .addParameter(String.class, pkCodeName)
+                .returns(boolean.class)
+                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
+                .addStatement("return table.getItem($T.builder().key(key).attributesToProject($S).build()) != null",
+                    GET_ITEM_ENHANCED_REQUEST, pkFieldName)
+                .build());
         }
 
+        // Scan methods
+        tb.addMethod(MethodSpec.methodBuilder("scan")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Scan the entire table. Returns all items (flattened across pages).\n")
+            .returns(listOfEntity)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.scan().forEach(page -> results.addAll(page.items()))")
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("scan")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Scan with a filter expression.\n")
+            .addParameter(EXPRESSION, "filterExpression")
+            .returns(listOfEntity)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.scan($T.builder().filterExpression(filterExpression).build()).forEach(page -> results.addAll(page.items()))",
+                SCAN_ENHANCED_REQUEST)
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("scan")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Scan with full control via ScanEnhancedRequest. Returns PageIterable for pagination.\n")
+            .addParameter(SCAN_ENHANCED_REQUEST, "request")
+            .returns(pageIterableOfEntity)
+            .addStatement("return table.scan(request)")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("scanPages")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Scan returning PageIterable for manual page iteration.\n")
+            .returns(pageIterableOfEntity)
+            .addStatement("return table.scan()")
+            .build());
+
+        // Main-table query methods (only when table has sort key)
+        if (hasSortKey) {
+            addMainTableQueryMethods(tb, pkCodeName, skCodeName, pkFieldName, skFieldName,
+                entityClass, listOfEntity, pageIterableOfEntity, keysClass, schema);
+        }
+
+        // GSI query methods
         if (tableMetadata.globalSecondaryIndexes() != null) {
             for (TableMetadata.GSIMetadata gsi : tableMetadata.globalSecondaryIndexes()) {
                 addIndexQueryMethods(tb, gsi.indexName(), gsi.partitionKey(), gsi.sortKey(),
-                    entityClass, listOfEntity, schema);
+                    entityClass, listOfEntity, pageIterableOfEntity, schema);
             }
         }
 
+        // LSI query methods
         if (tableMetadata.localSecondaryIndexes() != null) {
             for (TableMetadata.LSIMetadata lsi : tableMetadata.localSecondaryIndexes()) {
                 addIndexQueryMethods(tb, lsi.indexName(), pkFieldName, lsi.sortKey(),
-                    entityClass, listOfEntity, schema);
+                    entityClass, listOfEntity, pageIterableOfEntity, schema);
             }
         }
+
+        // --- Query with filter expression (main table) ---
+        if (hasSortKey) {
+            TypeName pkType = resolveKeyParamType(pkFieldName, schema);
+            String pkExpr = toKeyExpression(pkCodeName, pkFieldName, schema);
+
+            tb.addMethod(MethodSpec.methodBuilder("query")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Query main table by partition key with a filter expression.\n")
+                .addParameter(pkType, pkCodeName)
+                .addParameter(EXPRESSION, "filterExpression")
+                .returns(listOfEntity)
+                .addStatement("$T condition = $T.keyEqualTo($T.builder().partitionValue($L).build())",
+                    QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkExpr)
+                .addStatement("$T<$T> results = new $T<>()",
+                    ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+                .addStatement("table.query($T.builder().queryConditional(condition).filterExpression(filterExpression).build()).forEach(page -> results.addAll(page.items()))",
+                    QUERY_ENHANCED_REQUEST)
+                .addStatement("return results")
+                .build());
+        }
+
+        // --- Batch operations with unprocessed item retry ---
+        int maxRetries = 3;
+        tb.addMethod(MethodSpec.methodBuilder("batchGet")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Batch get items by keys.\n")
+            .addParameter(listOfKey, "keys")
+            .returns(listOfEntity)
+            .addStatement("$T.Builder batchBuilder = $T.builder($T.class).mappedTableResource(table)",
+                READ_BATCH, READ_BATCH, entityClass)
+            .addStatement("keys.forEach(batchBuilder::addGetItem)")
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("enhancedClient.batchGetItem($T.builder().readBatches(batchBuilder.build()).build()).resultsForTable(table).forEach(results::add)",
+                BATCH_GET_ITEM_ENHANCED_REQUEST)
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("batchSave")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Batch save entities with automatic retry for unprocessed items (up to $L retries).\n", maxRetries)
+            .addParameter(listOfEntity, "entities")
+            .addStatement("entities.forEach($T::validate)", validatorClass)
+            .addStatement("$T<$T> remaining = new $T<>(entities)",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .beginControlFlow("for (int attempt = 0; attempt <= $L && !remaining.isEmpty(); attempt++)", maxRetries)
+            .addStatement("$T.Builder batchBuilder = $T.builder($T.class).mappedTableResource(table)",
+                WRITE_BATCH, WRITE_BATCH, entityClass)
+            .addStatement("remaining.forEach(batchBuilder::addPutItem)")
+            .addStatement("$T result = enhancedClient.batchWriteItem($T.builder().writeBatches(batchBuilder.build()).build())",
+                BATCH_WRITE_RESULT, BATCH_WRITE_ITEM_ENHANCED_REQUEST)
+            .addStatement("remaining = result.unprocessedPutItemsForTable(table)")
+            .endControlFlow()
+            .beginControlFlow("if (!remaining.isEmpty())")
+            .addStatement("throw new $T($S + remaining.size() + $S)",
+                ClassName.get(RuntimeException.class), "Batch save failed: ", " items unprocessed after retries")
+            .endControlFlow()
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("batchDelete")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Batch delete items by keys with automatic retry for unprocessed items (up to $L retries).\n", maxRetries)
+            .addParameter(listOfKey, "keys")
+            .addStatement("$T<$T> remaining = new $T<>(keys)",
+                ClassName.get("java.util", "List"), KEY, ClassName.get("java.util", "ArrayList"))
+            .beginControlFlow("for (int attempt = 0; attempt <= $L && !remaining.isEmpty(); attempt++)", maxRetries)
+            .addStatement("$T.Builder batchBuilder = $T.builder($T.class).mappedTableResource(table)",
+                WRITE_BATCH, WRITE_BATCH, entityClass)
+            .addStatement("remaining.forEach(batchBuilder::addDeleteItem)")
+            .addStatement("$T result = enhancedClient.batchWriteItem($T.builder().writeBatches(batchBuilder.build()).build())",
+                BATCH_WRITE_RESULT, BATCH_WRITE_ITEM_ENHANCED_REQUEST)
+            .addStatement("remaining = result.unprocessedDeleteItemsForTable(table)")
+            .endControlFlow()
+            .beginControlFlow("if (!remaining.isEmpty())")
+            .addStatement("throw new $T($S + remaining.size() + $S)",
+                ClassName.get(RuntimeException.class), "Batch delete failed: ", " items unprocessed after retries")
+            .endControlFlow()
+            .build());
+
+        // --- Transaction operations ---
+        tb.addMethod(MethodSpec.methodBuilder("transactGet")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Transactional get of multiple items by keys.\n")
+            .addParameter(listOfKey, "keys")
+            .returns(listOfEntity)
+            .addStatement("$T.Builder reqBuilder = $T.builder()",
+                TRANSACT_GET_ITEMS_ENHANCED_REQUEST, TRANSACT_GET_ITEMS_ENHANCED_REQUEST)
+            .addStatement("keys.forEach(key -> reqBuilder.addGetItem(table, key))")
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("enhancedClient.transactGetItems(reqBuilder.build()).forEach(doc -> { $T item = doc.getItem(table); if (item != null) results.add(item); })",
+                entityClass)
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("transactSave")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Transactional save of multiple entities. Validates each entity.\n")
+            .addParameter(listOfEntity, "entities")
+            .addStatement("entities.forEach($T::validate)", validatorClass)
+            .addStatement("$T.Builder reqBuilder = $T.builder()",
+                TRANSACT_WRITE_ITEMS_ENHANCED_REQUEST, TRANSACT_WRITE_ITEMS_ENHANCED_REQUEST)
+            .addStatement("entities.forEach(entity -> reqBuilder.addPutItem(table, entity))")
+            .addStatement("enhancedClient.transactWriteItems(reqBuilder.build())")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("transactDelete")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Transactional delete of multiple items by keys.\n")
+            .addParameter(listOfKey, "keys")
+            .addStatement("$T.Builder reqBuilder = $T.builder()",
+                TRANSACT_WRITE_ITEMS_ENHANCED_REQUEST, TRANSACT_WRITE_ITEMS_ENHANCED_REQUEST)
+            .addStatement("keys.forEach(key -> reqBuilder.addDeleteItem(table, key))")
+            .addStatement("enhancedClient.transactWriteItems(reqBuilder.build())")
+            .build());
+
+        // Transaction pass-throughs for full control (per-item conditions, mixed operations)
+        tb.addMethod(MethodSpec.methodBuilder("transactWrite")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Execute a transaction write with full control via TransactWriteItemsEnhancedRequest.\n")
+            .addJavadoc("Use this for per-item condition expressions or mixed put/delete/update/conditionCheck operations.\n")
+            .addParameter(TRANSACT_WRITE_ITEMS_ENHANCED_REQUEST, "request")
+            .addStatement("enhancedClient.transactWriteItems(request)")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("transactRead")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Execute a transaction read with full control via TransactGetItemsEnhancedRequest.\n")
+            .addParameter(TRANSACT_GET_ITEMS_ENHANCED_REQUEST, "request")
+            .returns(listOfEntity)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("enhancedClient.transactGetItems(request).forEach(doc -> { $T item = doc.getItem(table); if (item != null) results.add(item); })",
+                entityClass)
+            .addStatement("return results")
+            .build());
 
         JavaFile.builder(pkg + ".repository", tb.build())
             .skipJavaLangImports(true)
@@ -657,16 +1128,128 @@ public class JavaGenerator {
     }
 
     /**
-     * Add queryBy{IndexName} methods for a GSI or LSI.
-     * The generated parameter types are derived from the field's .bprint type so the
-     * API is type-safe (e.g. a {@code number.long} sort key receives a {@code Long} parameter).
-     * {@code timestamp.epoch} keys receive a {@code Long} and are passed directly.
-     * Other {@code timestamp.*} keys receive an {@code Instant} / {@code LocalDate} and are
-     * converted to their string representation before being handed to Key.Builder.
+     * Generate query methods for the main table's sort key (query, queryBetween,
+     * queryBeginsWith, queryGT, queryLT, queryGTE, queryLTE).
+     */
+    private void addMainTableQueryMethods(TypeSpec.Builder tb, String pkCodeName, String skCodeName,
+            String pkFieldName, String skFieldName, ClassName entityClass,
+            ParameterizedTypeName listOfEntity, ParameterizedTypeName pageIterableOfEntity,
+            ClassName keysClass, BprintSchema schema) {
+
+        TypeName pkType = resolveKeyParamType(pkFieldName, schema);
+        TypeName skType = resolveKeyParamType(skFieldName, schema);
+        String pkExpr = toKeyExpression(pkCodeName, pkFieldName, schema);
+        String skExpr = toKeyExpression(skCodeName, skFieldName, schema);
+
+        tb.addMethod(MethodSpec.methodBuilder("query")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query main table by partition key. Returns all items with matching PK.\n")
+            .addParameter(pkType, pkCodeName)
+            .returns(listOfEntity)
+            .addStatement("$T condition = $T.keyEqualTo($T.builder().partitionValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkExpr)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.query(condition).forEach(page -> results.addAll(page.items()))")
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("query")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query main table by partition key with a maximum result limit.\n")
+            .addParameter(pkType, pkCodeName)
+            .addParameter(int.class, "maxResults")
+            .returns(listOfEntity)
+            .addStatement("$T condition = $T.keyEqualTo($T.builder().partitionValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkExpr)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.query($T.builder().queryConditional(condition).limit(maxResults).build()).forEach(page -> results.addAll(page.items()))",
+                QUERY_ENHANCED_REQUEST)
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("query")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query main table with full control via QueryEnhancedRequest.\n")
+            .addParameter(QUERY_ENHANCED_REQUEST, "request")
+            .returns(pageIterableOfEntity)
+            .addStatement("return table.query(request)")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("queryPages")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query main table by partition key returning PageIterable for manual pagination.\n")
+            .addParameter(pkType, pkCodeName)
+            .returns(pageIterableOfEntity)
+            .addStatement("$T condition = $T.keyEqualTo($T.builder().partitionValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkExpr)
+            .addStatement("return table.query(condition)")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("queryBetween")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query items with sort key between two values (inclusive).\n")
+            .addParameter(pkType, pkCodeName)
+            .addParameter(skType, "sortFrom")
+            .addParameter(skType, "sortTo")
+            .returns(listOfEntity)
+            .addStatement("$T condition = $T.sortBetween($T.builder().partitionValue($L).sortValue($L).build(), $T.builder().partitionValue($L).sortValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkExpr, toKeyExpression("sortFrom", skFieldName, schema), KEY, pkExpr, toKeyExpression("sortTo", skFieldName, schema))
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.query(condition).forEach(page -> results.addAll(page.items()))")
+            .addStatement("return results")
+            .build());
+
+        tb.addMethod(MethodSpec.methodBuilder("queryBeginsWith")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query items with sort key beginning with prefix.\n")
+            .addParameter(pkType, pkCodeName)
+            .addParameter(ClassName.get(String.class), "sortPrefix")
+            .returns(listOfEntity)
+            .addStatement("$T condition = $T.sortBeginsWith($T.builder().partitionValue($L).sortValue(sortPrefix).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkExpr)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.query(condition).forEach(page -> results.addAll(page.items()))")
+            .addStatement("return results")
+            .build());
+
+        addSortKeyRangeMethod(tb, "queryGreaterThan", "sortGreaterThan",
+            pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
+        addSortKeyRangeMethod(tb, "queryGreaterThanOrEqualTo", "sortGreaterThanOrEqual",
+            pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
+        addSortKeyRangeMethod(tb, "queryLessThan", "sortLessThan",
+            pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
+        addSortKeyRangeMethod(tb, "queryLessThanOrEqualTo", "sortLessThanOrEqual",
+            pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
+    }
+
+    private void addSortKeyRangeMethod(TypeSpec.Builder tb, String methodName, String conditionalMethod,
+            TypeName pkType, TypeName skType, String pkCodeName, String pkExpr, String skFieldName,
+            ClassName entityClass, ParameterizedTypeName listOfEntity, BprintSchema schema) {
+        tb.addMethod(MethodSpec.methodBuilder(methodName)
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query items where sort key is $L the given value.\n", methodName.replace("query", "").replaceAll("([A-Z])", " $1").trim().toLowerCase())
+            .addParameter(pkType, pkCodeName)
+            .addParameter(skType, "sortValue")
+            .returns(listOfEntity)
+            .addStatement("$T condition = $T.$L($T.builder().partitionValue($L).sortValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, conditionalMethod, KEY, pkExpr, toKeyExpression("sortValue", skFieldName, schema))
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("table.query(condition).forEach(page -> results.addAll(page.items()))")
+            .addStatement("return results")
+            .build());
+    }
+
+    /**
+     * Add queryBy{IndexName} methods for a GSI or LSI with full range query support.
      */
     private void addIndexQueryMethods(TypeSpec.Builder tb, String indexName, String partitionKey,
             String sortKey, ClassName entityClass, ParameterizedTypeName listOfEntity,
-            BprintSchema schema) {
+            ParameterizedTypeName pageIterableOfEntity, BprintSchema schema) {
         String methodName = "queryBy" + cap(toCamelCase(indexName));
         String pkParamName = toCamelCase(partitionKey);
         ParameterizedTypeName indexType = ParameterizedTypeName.get(DYNAMO_DB_INDEX, entityClass);
@@ -689,11 +1272,29 @@ public class JavaGenerator {
             .addStatement("return results")
             .build());
 
-        // PK+SK query (if sort key exists)
+        // PK-only query with limit
+        tb.addMethod(MethodSpec.methodBuilder(methodName)
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query $L index by partition key with a maximum result limit.\n", indexName)
+            .addParameter(pkParamType, pkParamName)
+            .addParameter(int.class, "maxResults")
+            .returns(listOfEntity)
+            .addStatement("$T index = table.index($S)", indexType, indexName)
+            .addStatement("$T condition = $T.keyEqualTo($T.builder().partitionValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkKeyExpr)
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("index.query($T.builder().queryConditional(condition).limit(maxResults).build()).forEach(page -> results.addAll(page.items()))",
+                QUERY_ENHANCED_REQUEST)
+            .addStatement("return results")
+            .build());
+
         if (sortKey != null && !sortKey.isEmpty()) {
             String skParamName = toCamelCase(sortKey);
             TypeName skParamType = resolveKeyParamType(sortKey, schema);
             String skKeyExpr = toKeyExpression(skParamName, sortKey, schema);
+
+            // Exact PK+SK match
             tb.addMethod(MethodSpec.methodBuilder(methodName)
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc("Query $L index by partition key and sort key.\n", indexName)
@@ -708,7 +1309,74 @@ public class JavaGenerator {
                 .addStatement("index.query(condition).forEach(page -> results.addAll(page.items()))")
                 .addStatement("return results")
                 .build());
+
+            // Between
+            tb.addMethod(MethodSpec.methodBuilder(methodName + "Between")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Query $L index with sort key between two values (inclusive).\n", indexName)
+                .addParameter(pkParamType, pkParamName)
+                .addParameter(skParamType, "sortFrom")
+                .addParameter(skParamType, "sortTo")
+                .returns(listOfEntity)
+                .addStatement("$T index = table.index($S)", indexType, indexName)
+                .addStatement("$T condition = $T.sortBetween($T.builder().partitionValue($L).sortValue($L).build(), $T.builder().partitionValue($L).sortValue($L).build())",
+                    QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkKeyExpr, toKeyExpression("sortFrom", sortKey, schema), KEY, pkKeyExpr, toKeyExpression("sortTo", sortKey, schema))
+                .addStatement("$T<$T> results = new $T<>()",
+                    ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+                .addStatement("index.query(condition).forEach(page -> results.addAll(page.items()))")
+                .addStatement("return results")
+                .build());
+
+            // BeginsWith
+            tb.addMethod(MethodSpec.methodBuilder(methodName + "BeginsWith")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Query $L index with sort key beginning with prefix.\n", indexName)
+                .addParameter(pkParamType, pkParamName)
+                .addParameter(ClassName.get(String.class), "sortPrefix")
+                .returns(listOfEntity)
+                .addStatement("$T index = table.index($S)", indexType, indexName)
+                .addStatement("$T condition = $T.sortBeginsWith($T.builder().partitionValue($L).sortValue(sortPrefix).build())",
+                    QUERY_CONDITIONAL, QUERY_CONDITIONAL, KEY, pkKeyExpr)
+                .addStatement("$T<$T> results = new $T<>()",
+                    ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+                .addStatement("index.query(condition).forEach(page -> results.addAll(page.items()))")
+                .addStatement("return results")
+                .build());
+
+            // Range methods: GT, GTE, LT, LTE
+            addIndexSortKeyRangeMethod(tb, methodName + "GreaterThan", "sortGreaterThan",
+                indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
+                entityClass, listOfEntity, indexType, schema);
+            addIndexSortKeyRangeMethod(tb, methodName + "GreaterThanOrEqualTo", "sortGreaterThanOrEqual",
+                indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
+                entityClass, listOfEntity, indexType, schema);
+            addIndexSortKeyRangeMethod(tb, methodName + "LessThan", "sortLessThan",
+                indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
+                entityClass, listOfEntity, indexType, schema);
+            addIndexSortKeyRangeMethod(tb, methodName + "LessThanOrEqualTo", "sortLessThanOrEqual",
+                indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
+                entityClass, listOfEntity, indexType, schema);
         }
+    }
+
+    private void addIndexSortKeyRangeMethod(TypeSpec.Builder tb, String methodName,
+            String conditionalMethod, String indexName, TypeName pkParamType, TypeName skParamType,
+            String pkParamName, String pkKeyExpr, String sortKey, ClassName entityClass,
+            ParameterizedTypeName listOfEntity, ParameterizedTypeName indexType, BprintSchema schema) {
+        tb.addMethod(MethodSpec.methodBuilder(methodName)
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Query $L index with sort key range condition.\n", indexName)
+            .addParameter(pkParamType, pkParamName)
+            .addParameter(skParamType, "sortValue")
+            .returns(listOfEntity)
+            .addStatement("$T index = table.index($S)", indexType, indexName)
+            .addStatement("$T condition = $T.$L($T.builder().partitionValue($L).sortValue($L).build())",
+                QUERY_CONDITIONAL, QUERY_CONDITIONAL, conditionalMethod, KEY, pkKeyExpr, toKeyExpression("sortValue", sortKey, schema))
+            .addStatement("$T<$T> results = new $T<>()",
+                ClassName.get("java.util", "List"), entityClass, ClassName.get("java.util", "ArrayList"))
+            .addStatement("index.query(condition).forEach(page -> results.addAll(page.items()))")
+            .addStatement("return results")
+            .build());
     }
 
     /**
@@ -855,7 +1523,7 @@ public class JavaGenerator {
             .addStatement("String resolvedRegion = resolve(region, \"AWS_REGION\", \"AWS_DEFAULT_REGION\")")
             .addStatement("String resolvedEndpoint = resolve(endpoint, \"DYNAMODB_ENDPOINT\")")
             .addCode("\n")
-            .addStatement("$T.Builder ddbBuilder = $T.builder()", DYNAMO_DB_CLIENT, DYNAMO_DB_CLIENT)
+            .addStatement("$T ddbBuilder = $T.builder()", DYNAMO_DB_CLIENT_BUILDER, DYNAMO_DB_CLIENT)
             .beginControlFlow("if (resolvedRegion != null)")
             .addStatement("ddbBuilder.region($T.of(resolvedRegion))", REGION)
             .endControlFlow()
@@ -1191,7 +1859,11 @@ public class JavaGenerator {
             String originalName, BprintSchema.Constraints c, ClassName fieldErrorClass, String fieldType) {
         method.beginControlFlow("if (entity.$L() != null)", getterName);
 
-        boolean isDecimal = "decimal".equals(parseType(fieldType)[1]);
+        String[] parts = parseType(fieldType);
+        boolean isDecimal = "decimal".equals(parts[1]);
+        boolean isLong = "long".equals(parts[1]);
+        boolean isDouble = "double".equals(parts[1]);
+        boolean isIntegerFamily = !isDecimal && !isDouble;
 
         if (c.min != null) {
             if (isDecimal) {
@@ -1202,10 +1874,11 @@ public class JavaGenerator {
                         "must be >= " + c.min + ", got ", getterName)
                     .endControlFlow();
             } else {
-                method.beginControlFlow("if (entity.$L() < $L)", getterName, c.min)
+                Object minLiteral = isLong ? (Object) c.min.longValue() : isIntegerFamily ? (Object) c.min.intValue() : c.min;
+                method.beginControlFlow("if (entity.$L() < $L)", getterName, minLiteral)
                     .addStatement("errors.add(new $T($S, $S, $S + entity.$L()))",
                         fieldErrorClass, originalName, "min",
-                        "must be >= " + c.min + ", got ", getterName)
+                        "must be >= " + minLiteral + ", got ", getterName)
                     .endControlFlow();
             }
         }
@@ -1219,10 +1892,11 @@ public class JavaGenerator {
                         "must be <= " + c.max + ", got ", getterName)
                     .endControlFlow();
             } else {
-                method.beginControlFlow("if (entity.$L() > $L)", getterName, c.max)
+                Object maxLiteral = isLong ? (Object) c.max.longValue() : isIntegerFamily ? (Object) c.max.intValue() : c.max;
+                method.beginControlFlow("if (entity.$L() > $L)", getterName, maxLiteral)
                     .addStatement("errors.add(new $T($S, $S, $S + entity.$L()))",
                         fieldErrorClass, originalName, "max",
-                        "must be <= " + c.max + ", got ", getterName)
+                        "must be <= " + maxLiteral + ", got ", getterName)
                     .endControlFlow();
             }
         }

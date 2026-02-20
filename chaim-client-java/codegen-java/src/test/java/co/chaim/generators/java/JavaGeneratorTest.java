@@ -242,9 +242,15 @@ public class JavaGeneratorTest {
     assertThat(content).doesNotContain("findByPkSk");
     assertThat(content).doesNotContain("deleteByPkSk");
     
-    // Should NOT contain findAll or scan
+    // Should NOT contain old findAll
     assertThat(content).doesNotContain("findAll");
-    assertThat(content).doesNotContain("scan()");
+
+    // Should now have scan, batch, transaction, and conditional write methods
+    assertThat(content).contains("public List<User> scan()");
+    assertThat(content).contains("public void batchSave(List<User> entities)");
+    assertThat(content).contains("public void transactSave(List<User> entities)");
+    assertThat(content).contains("public User update(User entity)");
+    assertThat(content).contains("public boolean existsByKey(String userId)");
   }
 
   @Test
@@ -868,18 +874,18 @@ public class JavaGeneratorTest {
 
     String content = Files.readString(file);
 
-    // Check number min/max for price
+    // Check number min/max for price (bare 'number' → Integer, so integer literals)
     assertThat(content).contains("entity.getPrice() != null");
-    assertThat(content).contains("entity.getPrice() < 0.0");
-    assertThat(content).contains("entity.getPrice() > 999999.99");
+    assertThat(content).contains("entity.getPrice() < 0");
+    assertThat(content).contains("entity.getPrice() > 999999");
     assertThat(content).contains("\"price\"");
     assertThat(content).contains("\"min\"");
     assertThat(content).contains("\"max\"");
 
-    // Check number min/max for quantity
+    // Check number min/max for quantity (bare 'number' → Integer, so integer literals)
     assertThat(content).contains("entity.getQuantity() != null");
-    assertThat(content).contains("entity.getQuantity() < 0.0");
-    assertThat(content).contains("entity.getQuantity() > 10000.0");
+    assertThat(content).contains("entity.getQuantity() < 0");
+    assertThat(content).contains("entity.getQuantity() > 10000");
   }
 
   @Test
@@ -932,9 +938,9 @@ public class JavaGeneratorTest {
     assertThat(content).contains("entity.getUserId().length() < 1");
     assertThat(content).contains("entity.getEmail().matches(");
 
-    // Number constraints present
-    assertThat(content).contains("entity.getAge() < 0.0");
-    assertThat(content).contains("entity.getAge() > 150.0");
+    // Number constraints present (bare 'number' → Integer literals)
+    assertThat(content).contains("entity.getAge() < 0");
+    assertThat(content).contains("entity.getAge() > 150");
 
     // All use original field names in error messages
     assertThat(content).contains("\"userId\"");
@@ -2520,5 +2526,471 @@ public class JavaGeneratorTest {
 
     // ShippingAddress references the qualified coordinates type
     assertThat(shippingContent).contains("private ShippingAddressCoordinates coordinates");
+  }
+
+  // =========================================================================
+  // DDB Enhanced Client Parity Tests
+  // =========================================================================
+
+  @Test
+  void generatesConditionalSaveAndUpdate() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public void save(User entity, Expression conditionExpression)");
+    assertThat(content).contains("public User update(User entity)");
+    assertThat(content).contains("public User update(User entity, Expression conditionExpression)");
+    assertThat(content).contains("PutItemEnhancedRequest");
+    assertThat(content).contains("UpdateItemEnhancedRequest");
+  }
+
+  @Test
+  void generatesConsistentReadOverload() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public Optional<User> findByKey(String userId, boolean consistentRead)");
+    assertThat(content).contains("GetItemEnhancedRequest");
+    assertThat(content).contains("consistentRead(consistentRead)");
+  }
+
+  @Test
+  void generatesConsistentReadOverloadWithCompositeKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public Optional<User> findByKey(String userId, String entityType, boolean consistentRead)");
+  }
+
+  @Test
+  void generatesProjectionReadOverload() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public Optional<User> findByKey(String userId, List<String> attributesToProject)");
+    assertThat(content).contains("attributesToProject(attributesToProject)");
+  }
+
+  @Test
+  void generatesConditionalDeleteOverload() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public void deleteByKey(String userId, Expression conditionExpression)");
+    assertThat(content).contains("DeleteItemEnhancedRequest");
+  }
+
+  @Test
+  void generatesConditionalDeleteWithCompositeKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public void deleteByKey(String userId, String entityType, Expression conditionExpression)");
+  }
+
+  @Test
+  void generatesExistsByKeyMethod() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public boolean existsByKey(String userId)");
+    assertThat(content).contains("attributesToProject(\"userId\")");
+  }
+
+  @Test
+  void generatesExistsByKeyWithCompositeKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public boolean existsByKey(String userId, String entityType)");
+  }
+
+  @Test
+  void generatesScanMethods() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> scan()");
+    assertThat(content).contains("public List<User> scan(Expression filterExpression)");
+    assertThat(content).contains("public PageIterable<User> scan(ScanEnhancedRequest request)");
+    assertThat(content).contains("public PageIterable<User> scanPages()");
+  }
+
+  @Test
+  void generatesMainTableQueryMethodsWhenSortKeyExists() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> query(String userId)");
+    assertThat(content).contains("public PageIterable<User> query(QueryEnhancedRequest request)");
+    assertThat(content).contains("public PageIterable<User> queryPages(String userId)");
+    assertThat(content).contains("public List<User> queryBetween(String userId, String sortFrom, String sortTo)");
+    assertThat(content).contains("public List<User> queryBeginsWith(String userId, String sortPrefix)");
+    assertThat(content).contains("public List<User> queryGreaterThan(String userId, String sortValue)");
+    assertThat(content).contains("public List<User> queryGreaterThanOrEqualTo(String userId, String sortValue)");
+    assertThat(content).contains("public List<User> queryLessThan(String userId, String sortValue)");
+    assertThat(content).contains("public List<User> queryLessThanOrEqualTo(String userId, String sortValue)");
+  }
+
+  @Test
+  void doesNotGenerateMainTableQueryMethodsWithoutSortKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).doesNotContain("queryBetween");
+    assertThat(content).doesNotContain("queryBeginsWith");
+    assertThat(content).doesNotContain("queryGreaterThan");
+    assertThat(content).doesNotContain("queryLessThan");
+  }
+
+  @Test
+  void generatesBatchOperations() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> batchGet(List<Key> keys)");
+    assertThat(content).contains("public void batchSave(List<User> entities)");
+    assertThat(content).contains("public void batchDelete(List<Key> keys)");
+    assertThat(content).contains("ReadBatch");
+    assertThat(content).contains("WriteBatch");
+    assertThat(content).contains("BatchGetItemEnhancedRequest");
+    assertThat(content).contains("BatchWriteItemEnhancedRequest");
+  }
+
+  @Test
+  void generatesTransactionOperations() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> transactGet(List<Key> keys)");
+    assertThat(content).contains("public void transactSave(List<User> entities)");
+    assertThat(content).contains("public void transactDelete(List<Key> keys)");
+    assertThat(content).contains("TransactGetItemsEnhancedRequest");
+    assertThat(content).contains("TransactWriteItemsEnhancedRequest");
+  }
+
+  @Test
+  void generatesIndexQueryRangeMethods() throws Exception {
+    TableMetadata metaWithGsi = new TableMetadata(
+        "DataTable",
+        "arn:aws:dynamodb:us-east-1:123456789012:table/DataTable",
+        "us-east-1",
+        List.of(new TableMetadata.GSIMetadata("email-index", "email", "userId", "ALL")),
+        null
+    );
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, metaWithGsi);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> queryByEmailIndex(String email)");
+    assertThat(content).contains("public List<User> queryByEmailIndex(String email, String userId)");
+    assertThat(content).contains("public List<User> queryByEmailIndexBetween(String email, String sortFrom, String sortTo)");
+    assertThat(content).contains("public List<User> queryByEmailIndexBeginsWith(String email, String sortPrefix)");
+    assertThat(content).contains("public List<User> queryByEmailIndexGreaterThan(String email, String sortValue)");
+    assertThat(content).contains("public List<User> queryByEmailIndexGreaterThanOrEqualTo(String email, String sortValue)");
+    assertThat(content).contains("public List<User> queryByEmailIndexLessThan(String email, String sortValue)");
+    assertThat(content).contains("public List<User> queryByEmailIndexLessThanOrEqualTo(String email, String sortValue)");
+  }
+
+  @Test
+  void generatesRepositoryWithEnhancedClientFields() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("private final DynamoDbEnhancedClient enhancedClient");
+    assertThat(content).contains("private final TableSchema<User> tableSchema");
+    assertThat(content).contains("TableSchema.fromBean(User.class)");
+  }
+
+  @Test
+  void batchSaveValidatesEntities() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("entities.forEach(UserValidator::validate)");
+  }
+
+  @Test
+  void transactSaveValidatesEntities() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    int transactSaveIdx = content.indexOf("public void transactSave");
+    assertThat(transactSaveIdx).isGreaterThan(0);
+    String afterTransact = content.substring(transactSaveIdx, content.indexOf("}", transactSaveIdx + 1) + 1);
+    assertThat(afterTransact).contains("UserValidator::validate");
+  }
+
+  @Test
+  void generatesQueryWithLimitOnMainTable() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> query(String userId, int maxResults)");
+    assertThat(content).contains(".limit(maxResults)");
+    assertThat(content).contains("QueryEnhancedRequest.builder()");
+  }
+
+  @Test
+  void generatesQueryWithLimitOnIndex() throws Exception {
+    TableMetadata metaWithGsi = new TableMetadata(
+        "DataTable",
+        "arn:aws:dynamodb:us-east-1:123456789012:table/DataTable",
+        "us-east-1",
+        List.of(new TableMetadata.GSIMetadata("email-index", "email", "userId", "ALL")),
+        null
+    );
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, metaWithGsi);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> queryByEmailIndex(String email, int maxResults)");
+  }
+
+  @Test
+  void validatorUsesIntegerLiteralForIntFields() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.1";
+    schema.entityName = "Product";
+    schema.description = "Product with number.int field";
+
+    BprintSchema.Identity pk = new BprintSchema.Identity();
+    pk.fields = java.util.Arrays.asList("productId");
+    schema.identity = pk;
+
+    BprintSchema.Field prodId = new BprintSchema.Field();
+    prodId.name = "productId";
+    prodId.type = "string";
+    prodId.required = true;
+
+    BprintSchema.Field stock = new BprintSchema.Field();
+    stock.name = "stockQuantity";
+    stock.type = "number.int";
+    stock.required = false;
+    BprintSchema.Constraints stockC = new BprintSchema.Constraints();
+    stockC.min = 0.0;
+    stockC.max = 10000.0;
+    stock.constraints = stockC;
+
+    schema.fields = List.of(prodId, stock);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/validation/ProductValidator.java"));
+
+    // Integer fields should use integer literals, not double
+    assertThat(content).contains("entity.getStockQuantity() < 0");
+    assertThat(content).doesNotContain("entity.getStockQuantity() < 0.0");
+    assertThat(content).contains("entity.getStockQuantity() > 10000");
+    assertThat(content).doesNotContain("entity.getStockQuantity() > 10000.0");
+    assertThat(content).contains("must be >= 0");
+    assertThat(content).contains("must be <= 10000");
+  }
+
+  @Test
+  void validatorUsesDoubleLiteralForDoubleFields() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.1";
+    schema.entityName = "Product";
+    schema.description = "Product with number.double field";
+
+    BprintSchema.Identity pk = new BprintSchema.Identity();
+    pk.fields = java.util.Arrays.asList("productId");
+    schema.identity = pk;
+
+    BprintSchema.Field prodId = new BprintSchema.Field();
+    prodId.name = "productId";
+    prodId.type = "string";
+    prodId.required = true;
+
+    BprintSchema.Field price = new BprintSchema.Field();
+    price.name = "price";
+    price.type = "number.double";
+    price.required = false;
+    BprintSchema.Constraints priceC = new BprintSchema.Constraints();
+    priceC.min = 0.0;
+    priceC.max = 999.99;
+    price.constraints = priceC;
+
+    schema.fields = List.of(prodId, price);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/validation/ProductValidator.java"));
+
+    // Double fields should keep double literals
+    assertThat(content).contains("entity.getPrice() < 0.0");
+    assertThat(content).contains("entity.getPrice() > 999.99");
+  }
+
+  @Test
+  void validatorUsesLongLiteralForLongFields() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.1";
+    schema.entityName = "Event";
+    schema.description = "Event with number.long field";
+
+    BprintSchema.Identity pk = new BprintSchema.Identity();
+    pk.fields = java.util.Arrays.asList("eventId");
+    schema.identity = pk;
+
+    BprintSchema.Field eventId = new BprintSchema.Field();
+    eventId.name = "eventId";
+    eventId.type = "string";
+    eventId.required = true;
+
+    BprintSchema.Field count = new BprintSchema.Field();
+    count.name = "viewCount";
+    count.type = "number.long";
+    count.required = false;
+    BprintSchema.Constraints countC = new BprintSchema.Constraints();
+    countC.min = 0.0;
+    countC.max = 1000000.0;
+    count.constraints = countC;
+
+    schema.fields = List.of(eventId, count);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/validation/EventValidator.java"));
+
+    // Long fields should use long literals (no decimal point)
+    assertThat(content).contains("entity.getViewCount() < 0");
+    assertThat(content).doesNotContain("entity.getViewCount() < 0.0");
+    assertThat(content).contains("entity.getViewCount() > 1000000");
+    assertThat(content).doesNotContain("entity.getViewCount() > 1000000.0");
+  }
+
+  // =========================================================================
+  // 100% Enhanced Client Parity Tests
+  // =========================================================================
+
+  @Test
+  void generatesRepositoryAccessors() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public DynamoDbTable<User> getTable()");
+    assertThat(content).contains("public DynamoDbEnhancedClient getEnhancedClient()");
+    assertThat(content).contains("public TableSchema<User> getTableSchema()");
+    assertThat(content).contains("return table");
+    assertThat(content).contains("return enhancedClient");
+    assertThat(content).contains("return tableSchema");
+  }
+
+  @Test
+  void generatesUpdateWithIgnoreNulls() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public User update(User entity, boolean ignoreNulls)");
+    assertThat(content).contains(".ignoreNulls(ignoreNulls)");
+    assertThat(content).contains("public User update(User entity, Expression conditionExpression, boolean ignoreNulls)");
+  }
+
+  @Test
+  void generatesFullPassThroughOverloads() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public void save(PutItemEnhancedRequest<User> request)");
+    assertThat(content).contains("public User update(UpdateItemEnhancedRequest<User> request)");
+    assertThat(content).contains("public Optional<User> delete(DeleteItemEnhancedRequest request)");
+    assertThat(content).contains("public Optional<User> findByKey(GetItemEnhancedRequest request)");
+  }
+
+  @Test
+  void generatesDeleteAndReturnForSingleKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public Optional<User> deleteAndReturn(String userId)");
+    assertThat(content).contains("public Optional<User> deleteAndReturn(String userId, Expression conditionExpression)");
+  }
+
+  @Test
+  void generatesDeleteAndReturnForCompositeKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public Optional<User> deleteAndReturn(String userId, String entityType)");
+    assertThat(content).contains("public Optional<User> deleteAndReturn(String userId, String entityType,");
+    assertThat(content).contains("Expression conditionExpression)");
+  }
+
+  @Test
+  void generatesBatchSaveWithRetryLogic() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("for (int attempt = 0; attempt <= 3 && !remaining.isEmpty(); attempt++)");
+    assertThat(content).contains("result.unprocessedPutItemsForTable(table)");
+    assertThat(content).contains("Batch save failed:");
+    assertThat(content).contains("BatchWriteResult");
+  }
+
+  @Test
+  void generatesBatchDeleteWithRetryLogic() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("result.unprocessedDeleteItemsForTable(table)");
+    assertThat(content).contains("Batch delete failed:");
+  }
+
+  @Test
+  void generatesTransactWritePassThrough() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public void transactWrite(TransactWriteItemsEnhancedRequest request)");
+    assertThat(content).contains("public List<User> transactRead(TransactGetItemsEnhancedRequest request)");
+  }
+
+  @Test
+  void generatesQueryWithFilterExpression() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userWithSortKeySchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    assertThat(content).contains("public List<User> query(String userId, Expression filterExpression)");
+    assertThat(content).contains(".filterExpression(filterExpression)");
+  }
+
+  @Test
+  void doesNotGenerateQueryWithFilterWhenNoSortKey() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
+
+    // query(pk, Expression filterExpression) should NOT exist for PK-only tables (no sort key = no query)
+    assertThat(content).doesNotContain("query(String userId, Expression filterExpression)");
   }
 }
