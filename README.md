@@ -46,8 +46,8 @@ chaim-bprint-spec (leaf)
 ### Install
 
 ```bash
-npm install -g @chaim-tools/chaim
-npm install @chaim-tools/cdk-lib @chaim-tools/chaim-bprint-spec
+npm install -g @chaim-tools/chaim@latest
+npm install @chaim-tools/cdk-lib@latest @chaim-tools/chaim-bprint-spec@latest
 ```
 
 ### Define a Schema

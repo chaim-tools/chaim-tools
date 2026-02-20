@@ -322,7 +322,6 @@ public class JavaGenerator {
         String pkCodeName = resolveKeyCodeName(schema, pkFieldName);
         String skCodeName = hasSortKey ? resolveKeyCodeName(schema, skFieldName) : null;
 
-        ClassName entityClass = ClassName.get(pkg, entityName);
         ClassName localDateConverterClass = ClassName.get(pkg + ".converter", "LocalDateConverter");
 
         // Generate standalone enum files for top-level string fields that carry enum values.
@@ -1227,32 +1226,6 @@ public class JavaGenerator {
                     .endControlFlow();
             }
         }
-
-        method.endControlFlow();
-    }
-
-    /**
-     * Add enum allowed-value validation check to the validate method.
-     */
-    private void addEnumValidationCheck(MethodSpec.Builder method, String getterName,
-            String originalName, List<String> enumValues, ClassName fieldErrorClass) {
-        method.beginControlFlow("if (entity.$L() != null)", getterName);
-
-        String allowedList = String.join(", ", enumValues);
-
-        CodeBlock.Builder setOfBlock = CodeBlock.builder();
-        setOfBlock.add("$T.of(", ClassName.get("java.util", "Set"));
-        for (int i = 0; i < enumValues.size(); i++) {
-            if (i > 0) setOfBlock.add(", ");
-            setOfBlock.add("$S", enumValues.get(i));
-        }
-        setOfBlock.add(")");
-
-        method.beginControlFlow("if (!$L.contains(entity.$L()))", setOfBlock.build(), getterName)
-            .addStatement("errors.add(new $T($S, $S, $S + entity.$L()))",
-                fieldErrorClass, originalName, "enum",
-                "must be one of [" + allowedList + "], got ", getterName)
-            .endControlFlow();
 
         method.endControlFlow();
     }
