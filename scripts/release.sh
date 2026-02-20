@@ -103,11 +103,12 @@ done
 ok "All packages found"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Compute versions
+# Compute versions (skip bump if current version isn't published yet)
 # ─────────────────────────────────────────────────────────────────────────────
 
-log "VERSIONS" "Computing $BUMP_TYPE bumps..."
+log "VERSIONS" "Checking npm registry and computing bumps..."
 
+NEEDS_BUMP=()
 PKG_NAMES=()
 OLD_VERS=()
 NEW_VERS=()
@@ -115,12 +116,23 @@ NEW_VERS=()
 for i in $(seq 0 $((PKG_COUNT - 1))); do
   dir="${PKG_DIRS[$i]}"
   name=$(get_pkg_name "$dir")
-  old=$(get_pkg_ver "$dir")
-  new=$(bump_version "$old" "$BUMP_TYPE")
+  local_ver=$(get_pkg_ver "$dir")
+
+  published_ver=$(npm view "$name@$local_ver" version 2>/dev/null || echo "")
+
+  if [[ -z "$published_ver" ]]; then
+    new="$local_ver"
+    NEEDS_BUMP+=("false")
+    echo -e "  ${CYAN}$name${NC}  $local_ver ${YELLOW}(not yet on npm — skipping bump)${NC}"
+  else
+    new=$(bump_version "$local_ver" "$BUMP_TYPE")
+    NEEDS_BUMP+=("true")
+    echo -e "  ${CYAN}$name${NC}  $local_ver → ${GREEN}$new${NC}"
+  fi
+
   PKG_NAMES+=("$name")
-  OLD_VERS+=("$old")
+  OLD_VERS+=("$local_ver")
   NEW_VERS+=("$new")
-  echo -e "  ${CYAN}$name${NC}  $old → ${GREEN}$new${NC}"
 done
 
 if $DRY_RUN; then
@@ -181,8 +193,12 @@ log "BUMP" "Updating package.json files..."
 for i in $(seq 0 $((PKG_COUNT - 1))); do
   dir="${PKG_DIRS[$i]}"
   cd "$ROOT_DIR/$dir"
-  npm version "${NEW_VERS[$i]}" --no-git-tag-version --allow-same-version >/dev/null 2>&1
-  ok "${PKG_NAMES[$i]} → ${NEW_VERS[$i]}"
+  if [[ "${NEEDS_BUMP[$i]}" == "true" ]]; then
+    npm version "${NEW_VERS[$i]}" --no-git-tag-version --allow-same-version >/dev/null 2>&1
+    ok "${PKG_NAMES[$i]} → ${NEW_VERS[$i]}"
+  else
+    ok "${PKG_NAMES[$i]} @ ${NEW_VERS[$i]} (already at target version)"
+  fi
 done
 
 log "DEPS" "Updating cross-package references..."
