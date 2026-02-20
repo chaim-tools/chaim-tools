@@ -1,0 +1,48 @@
+{
+  "typeName": "Chaim::DynamoDB::Binding",
+  "description": "Attach Chaim schema metadata to an existing DynamoDB table (pilot: inline schema).",
+  "properties": {
+    "AppId": { "type": "string" },
+    "Target": {
+      "type": "object",
+      "properties": { "TableArn": { "type": "string" } },
+      "required": ["TableArn"],
+      "additionalProperties": false
+    },
+    "Schema": { "type": ["object", "string"] }
+  },
+  "required": ["AppId", "Target", "Schema"],
+  "additionalProperties": false,
+  "readOnlyProperties": [
+    "/properties/BindingId",
+    "/properties/ContentHash",
+    "/properties/AppliedAt",
+    "/properties/Status"
+  ],
+  "primaryIdentifier": ["/properties/BindingId"],
+  "handlers": {
+    "create": {
+      "permissions": [
+        "dynamodb:DescribeTable",
+        "secretsmanager:GetSecretValue",
+        "sts:GetCallerIdentity"
+      ]
+    },
+    "read": { "permissions": ["dynamodb:DescribeTable"] },
+    "update": {
+      "permissions": [
+        "dynamodb:DescribeTable",
+        "secretsmanager:GetSecretValue",
+        "sts:GetCallerIdentity"
+      ]
+    },
+    "delete": {
+      "permissions": [
+        "secretsmanager:GetSecretValue",
+        "sts:GetCallerIdentity"
+      ]
+    },
+    "list": { "permissions": [] }
+  }
+}
+

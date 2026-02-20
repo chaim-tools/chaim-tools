@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Order",
+  "description": "Order missing partition key",
+  "identity": { "fields": [] },
+  "fields": [
+    { "name": "orderId", "type": "string", "required": true }
+  ]
+}

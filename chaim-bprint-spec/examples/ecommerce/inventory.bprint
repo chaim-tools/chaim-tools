@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Inventory",
+  "description": "Product inventory tracking across warehouses for e-commerce platform",
+  "identity": { 
+    "fields": ["productId", "warehouseId"]
+  },
+  "fields": [
+    { "name": "productId", "type": "string", "required": true },
+    { "name": "warehouseId", "type": "string", "required": true },
+    {
+      "name": "quantity",
+      "type": "number.int",
+      "required": true,
+      "constraints": { "min": 0 }
+    },
+    {
+      "name": "reservedQuantity",
+      "type": "number.int",
+      "default": 0,
+      "constraints": { "min": 0 }
+    },
+    {
+      "name": "reorderPoint",
+      "type": "number.int",
+      "default": 10,
+      "constraints": { "min": 0 },
+      "description": "Threshold at which a reorder is triggered"
+    },
+    {
+      "name": "unitCost",
+      "type": "number.decimal",
+      "nullable": true,
+      "description": "Per-unit cost for this warehouse (null if not tracked at warehouse level)"
+    },
+    { "name": "lastUpdated", "type": "timestamp", "required": true },
+    { "name": "lastCountDate", "type": "timestamp.date", "nullable": true, "description": "Date of last physical inventory count" }
+  ]
+}

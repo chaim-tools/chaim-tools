@@ -1,0 +1,69 @@
+{
+  "name": "@chaim-tools/chaim-bprint-spec",
+  "version": "0.2.7",
+  "description": "Chaim Blueprint (.bprint) schema specification and TypeScript types",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "private": false,
+  "type": "commonjs",
+  "files": [
+    "dist",
+    "schema",
+    "spec-versions.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && cp -r schema dist/schema",
+    "clean": "rm -rf dist",
+    "prepare": "npm run build",
+    "lint": "eslint --max-warnings=0 .",
+    "validate:examples": "node scripts/validate-examples.mjs",
+    "validate:single": "node scripts/validate-single.mjs",
+    "test": "node --test tests/spec.test.mjs",
+    "test:integration": "node --test tests/integration/*.test.mjs",
+    "format": "prettier -w .",
+    "spec:check": "node scripts/spec-version-check.mjs",
+    "spec:bump": "node scripts/spec-version-bump.mjs",
+    "spec:bump:minor": "node scripts/spec-version-bump.mjs minor",
+    "spec:bump:major": "node scripts/spec-version-bump.mjs major",
+    "check": "prettier -c . && eslint . && npm run spec:check && npm run validate:examples && npm test"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./schema": "./schema/bprint.schema.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "chaim",
+    "bprint",
+    "schema",
+    "typescript",
+    "validation",
+    "ddb"
+  ],
+  "author": "Chaim Tools",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaim-tools/chaim-bprint-spec.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chaim-tools/chaim-bprint-spec/issues"
+  },
+  "homepage": "https://github.com/chaim-tools/chaim-bprint-spec#readme",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3"
+  }
+}

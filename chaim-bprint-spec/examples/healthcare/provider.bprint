@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Provider",
+  "description": "Healthcare provider information and credentials for clinic management",
+  "identity": { "fields": ["providerId"] },
+  "fields": [
+    { "name": "providerId", "type": "string", "required": true },
+    { "name": "npi", "type": "string", "required": true, "description": "National Provider Identifier" },
+    { "name": "firstName", "type": "string", "required": true },
+    { "name": "lastName", "type": "string", "required": true },
+    { "name": "specialty", "type": "string", "required": true },
+    { "name": "licenseNumber", "type": "string", "required": true },
+    { "name": "phone", "type": "string", "required": true },
+    { "name": "email", "type": "string", "required": true },
+    {
+      "name": "maxDailyAppointments",
+      "type": "number.int",
+      "default": 20,
+      "constraints": { "min": 1, "max": 50 },
+      "description": "Maximum number of appointments per day"
+    },
+    {
+      "name": "licensedSince",
+      "type": "timestamp.date",
+      "required": true,
+      "description": "Date of initial licensure"
+    },
+    { "name": "isActive", "type": "boolean", "default": true },
+    {
+      "name": "acceptedInsurances",
+      "type": "stringSet",
+      "description": "Set of insurance provider names accepted"
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true }
+  ]
+}

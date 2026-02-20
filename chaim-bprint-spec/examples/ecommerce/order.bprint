@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Order",
+  "description": "Customer order with line items, shipping, and payment details for e-commerce platform",
+  "identity": {
+    "fields": ["orderId", "customerId"]
+  },
+  "fields": [
+    { "name": "orderId", "type": "string", "required": true },
+    { "name": "customerId", "type": "string", "required": true },
+    {
+      "name": "email",
+      "type": "string",
+      "required": true,
+      "description": "Customer email for order notifications",
+      "constraints": {
+        "minLength": 5,
+        "maxLength": 254,
+        "pattern": "^[^@]+@[^@]+\\.[^@]+$"
+      }
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "required": true,
+      "enum": ["pending", "confirmed", "shipped", "delivered", "cancelled"]
+    },
+    {
+      "name": "totalAmount",
+      "type": "number.decimal",
+      "required": true,
+      "description": "Order total in the specified currency",
+      "constraints": { "min": 0, "max": 999999.99 }
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "default": "USD",
+      "constraints": { "minLength": 3, "maxLength": 3 }
+    },
+    {
+      "name": "taxAmount",
+      "type": "number.decimal",
+      "nullable": true,
+      "description": "Calculated tax amount (null for tax-exempt orders)"
+    },
+    {
+      "name": "paymentMethod",
+      "type": "string",
+      "required": true,
+      "enum": ["credit_card", "debit_card", "paypal", "apple_pay", "bank_transfer"]
+    },
+    { "name": "isPrimeOrder", "type": "boolean", "default": false },
+    { "name": "orderDate", "type": "timestamp", "required": true },
+    {
+      "name": "3pl-tracking-id",
+      "type": "string",
+      "nameOverride": "thirdPartyTrackingId",
+      "nullable": true,
+      "description": "Tracking ID from third-party logistics provider"
+    },
+    {
+      "name": "lineItems",
+      "type": "list",
+      "description": "Ordered products with pricing and customization",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "productId", "type": "string" },
+          { "name": "productName", "type": "string" },
+          { "name": "quantity", "type": "number.int" },
+          { "name": "unitPrice", "type": "number.decimal" },
+          { "name": "discount", "type": "number.decimal", "nullable": true },
+          {
+            "name": "customization",
+            "type": "map",
+            "fields": [
+              { "name": "color", "type": "string", "nullable": true },
+              { "name": "size", "type": "string", "nullable": true },
+              { "name": "giftWrap", "type": "boolean" },
+              { "name": "engraving", "type": "string", "nullable": true }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "shippingAddress",
+      "type": "map",
+      "fields": [
+        { "name": "recipientName", "type": "string" },
+        { "name": "street", "type": "string" },
+        { "name": "city", "type": "string" },
+        { "name": "state", "type": "string" },
+        { "name": "zip", "type": "string" },
+        { "name": "country", "type": "string" },
+        {
+          "name": "coordinates",
+          "type": "map",
+          "fields": [
+            { "name": "lat", "type": "number.double" },
+            { "name": "lng", "type": "number.double" }
+          ]
+        },
+        {
+          "name": "deliveryInstructions",
+          "type": "list",
+          "items": { "type": "string" }
+        }
+      ]
+    },
+    {
+      "name": "billingAddress",
+      "type": "map",
+      "fields": [
+        { "name": "street", "type": "string" },
+        { "name": "city", "type": "string" },
+        { "name": "state", "type": "string" },
+        { "name": "zip", "type": "string" },
+        { "name": "country", "type": "string" }
+      ]
+    },
+    {
+      "name": "paymentHistory",
+      "type": "list",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "transactionId", "type": "string" },
+          { "name": "amount", "type": "number.decimal" },
+          { "name": "method", "type": "string" },
+          { "name": "processedAt", "type": "timestamp.epoch" }
+        ]
+      }
+    },
+    { "name": "tags", "type": "stringSet" },
+    { "name": "appliedCouponCodes", "type": "stringSet" },
+    {
+      "name": "notes",
+      "type": "list",
+      "items": { "type": "string" }
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true },
+    { "name": "updatedAt", "type": "timestamp", "nullable": true }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "TooDeep",
+  "description": "Schema with deeply nested map structures",
+  "identity": { "fields": ["id"] },
+  "fields": [
+    { "name": "id", "type": "string", "required": true },
+    {
+      "name": "level1",
+      "type": "map",
+      "fields": [
+        {
+          "name": "level2",
+          "type": "map",
+          "fields": [
+            {
+              "name": "level3",
+              "type": "map",
+              "fields": [
+                {
+                  "name": "level4",
+                  "type": "map",
+                  "fields": [
+                    {
+                      "name": "level5",
+                      "type": "map",
+                      "fields": [
+                        {
+                          "name": "level6",
+                          "type": "map",
+                          "fields": [
+                            { "name": "value", "type": "string" }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Order",
+  "description": "Order entity with collection type fields",
+  "identity": { "fields": ["orderId"] },
+  "fields": [
+    { "name": "orderId", "type": "string", "required": true },
+    { "name": "customerId", "type": "string", "required": true },
+    { "name": "tags", "type": "list", "items": { "type": "string" } },
+    { "name": "quantities", "type": "list", "items": { "type": "number" } },
+    {
+      "name": "lineItems",
+      "type": "list",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "productId", "type": "string" },
+          { "name": "quantity", "type": "number" },
+          { "name": "price", "type": "number" }
+        ]
+      }
+    },
+    {
+      "name": "shippingAddress",
+      "type": "map",
+      "fields": [
+        { "name": "street", "type": "string" },
+        { "name": "city", "type": "string" },
+        { "name": "state", "type": "string" },
+        { "name": "zip", "type": "string" }
+      ]
+    },
+    { "name": "promotionCodes", "type": "stringSet" },
+    { "name": "discountTiers", "type": "numberSet" }
+  ]
+}

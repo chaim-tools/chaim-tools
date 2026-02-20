@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "DeviceGroup",
+  "description": "Logical grouping of IoT devices for management and monitoring",
+  "identity": { "fields": ["groupId"] },
+  "fields": [
+    { "name": "groupId", "type": "string", "required": true },
+    { "name": "name", "type": "string", "required": true },
+    { "name": "description", "type": "string", "nullable": true },
+    {
+      "name": "category",
+      "type": "string",
+      "enum": ["environmental", "security", "industrial", "agricultural", "smart_home"],
+      "required": true
+    },
+    { "name": "location", "type": "string", "required": true },
+    {
+      "name": "maxDevices",
+      "type": "number.int",
+      "default": 100,
+      "description": "Maximum number of devices allowed in this group",
+      "constraints": { "min": 1, "max": 10000 }
+    },
+    {
+      "name": "alertThresholdCount",
+      "type": "number.int",
+      "default": 5,
+      "description": "Number of simultaneous alerts before group-level escalation"
+    },
+    {
+      "name": "assignedDeviceIds",
+      "type": "stringSet",
+      "description": "Set of device IDs belonging to this group"
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true },
+    { "name": "createdBy", "type": "string", "nullable": true },
+    { "name": "isActive", "type": "boolean", "default": true }
+  ]
+}

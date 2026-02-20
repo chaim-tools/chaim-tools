@@ -1,0 +1,43 @@
+# Java/Gradle Build Artifacts
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+gradle-wrapper.properties
+
+# Node.js/TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+package-lock.json
+
+# IDE Files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test Reports
+**/build/reports/
+**/build/test-results/
+
+# JAR files (except wrapper)
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Local configuration
+local.properties
+.env

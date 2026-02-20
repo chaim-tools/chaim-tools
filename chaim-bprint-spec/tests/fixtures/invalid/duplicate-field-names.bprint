@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Order",
+  "description": "Order with duplicate field names",
+  "identity": { "fields": ["orderId"] },
+  "fields": [
+    { "name": "orderId", "type": "string", "required": true },
+    { "name": "orderId", "type": "string", "required": true }
+  ]
+}

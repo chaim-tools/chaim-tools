@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "UserAccount",
+  "description": "User account with field constraints for validation",
+  "identity": {
+    "fields": ["pk", "sk"]
+  },
+  "fields": [
+    {
+      "name": "pk",
+      "type": "string",
+      "required": true,
+      "description": "Partition key - USER#<userId>"
+    },
+    {
+      "name": "sk",
+      "type": "string",
+      "required": true,
+      "description": "Sort key - PROFILE"
+    },
+    {
+      "name": "userId",
+      "type": "string",
+      "required": true,
+      "description": "Unique user identifier"
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "required": true,
+      "description": "User email address with pattern validation",
+      "constraints": {
+        "minLength": 5,
+        "maxLength": 254,
+        "pattern": "^[^@]+@[^@]+\\.[^@]+$"
+      }
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "required": true,
+      "description": "Unique username",
+      "constraints": {
+        "minLength": 3,
+        "maxLength": 30,
+        "pattern": "^[a-zA-Z0-9_-]+$"
+      }
+    },
+    {
+      "name": "age",
+      "type": "number",
+      "description": "User age with min/max constraints",
+      "constraints": {
+        "min": 13,
+        "max": 120
+      }
+    },
+    {
+      "name": "bio",
+      "type": "string",
+      "description": "User biography with length limits",
+      "constraints": {
+        "maxLength": 500
+      }
+    },
+    {
+      "name": "isActive",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the account is active"
+    },
+    {
+      "name": "createdAt",
+      "type": "timestamp",
+      "required": true,
+      "description": "Account creation timestamp"
+    }
+  ]
+}

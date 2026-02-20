@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Order",
+  "description": "Order with deeply nested map structures",
+  "identity": { "fields": ["orderId"] },
+  "fields": [
+    { "name": "orderId", "type": "string", "required": true },
+    {
+      "name": "shippingAddress",
+      "type": "map",
+      "fields": [
+        { "name": "street", "type": "string" },
+        { "name": "city", "type": "string" },
+        {
+          "name": "coordinates",
+          "type": "map",
+          "fields": [
+            { "name": "lat", "type": "number" },
+            { "name": "lng", "type": "number" }
+          ]
+        },
+        {
+          "name": "history",
+          "type": "list",
+          "items": {
+            "type": "map",
+            "fields": [
+              { "name": "validFrom", "type": "timestamp" },
+              {
+                "name": "address",
+                "type": "map",
+                "fields": [
+                  { "name": "street", "type": "string" },
+                  { "name": "city", "type": "string" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

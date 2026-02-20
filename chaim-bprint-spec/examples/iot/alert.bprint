@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Alert",
+  "description": "Device alerts and notifications for IoT sensor management",
+  "identity": { 
+    "fields": ["deviceId", "alertId"]
+  },
+  "fields": [
+    { "name": "alertId", "type": "string", "required": true },
+    { "name": "deviceId", "type": "string", "required": true },
+    {
+      "name": "alertType",
+      "type": "string",
+      "enum": ["threshold_exceeded", "device_offline", "maintenance_due", "error_detected"],
+      "required": true
+    },
+    {
+      "name": "severity",
+      "type": "number.int",
+      "enum": [1, 2, 3, 4],
+      "required": true,
+      "description": "Alert severity: 1=low, 2=medium, 3=high, 4=critical"
+    },
+    { "name": "message", "type": "string", "required": true },
+    {
+      "name": "triggeredAt",
+      "type": "timestamp.epoch",
+      "required": true,
+      "description": "Exact time the alert was triggered as epoch milliseconds"
+    },
+    { "name": "acknowledged", "type": "boolean", "default": false },
+    { "name": "acknowledgedBy", "type": "string", "nullable": true },
+    { "name": "acknowledgedAt", "type": "timestamp.epoch", "nullable": true },
+    { "name": "resolved", "type": "boolean", "default": false },
+    { "name": "resolvedAt", "type": "timestamp.epoch", "nullable": true },
+    {
+      "name": "sensorValue",
+      "type": "number.double",
+      "nullable": true,
+      "description": "Sensor value that triggered the alert (null for non-threshold alerts)"
+    },
+    {
+      "name": "thresholdValue",
+      "type": "number.double",
+      "nullable": true,
+      "description": "Threshold that was exceeded (null for non-threshold alerts)"
+    }
+  ]
+}

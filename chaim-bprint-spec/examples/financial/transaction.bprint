@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Transaction",
+  "description": "Financial transaction records and audit trail for banking services",
+  "identity": { 
+    "fields": ["accountId", "transactionId"]
+  },
+  "fields": [
+    { "name": "transactionId", "type": "string", "required": true },
+    { "name": "accountId", "type": "string", "required": true },
+    {
+      "name": "transactionType",
+      "type": "string",
+      "enum": ["deposit", "withdrawal", "transfer", "payment", "fee"],
+      "required": true
+    },
+    {
+      "name": "amount",
+      "type": "number.decimal",
+      "required": true,
+      "description": "Transaction amount in account currency"
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "default": "USD",
+      "constraints": { "minLength": 3, "maxLength": 3 }
+    },
+    { "name": "description", "type": "string" },
+    {
+      "name": "status",
+      "type": "string",
+      "enum": ["pending", "completed", "failed", "cancelled"],
+      "required": true
+    },
+    {
+      "name": "processedAt",
+      "type": "timestamp.epoch",
+      "required": true,
+      "description": "Transaction processing time as epoch milliseconds"
+    },
+    { "name": "referenceNumber", "type": "string", "nullable": true },
+    { "name": "merchantId", "type": "string", "nullable": true },
+    { "name": "location", "type": "string", "nullable": true },
+    {
+      "name": "riskScore",
+      "type": "number.int",
+      "nullable": true,
+      "constraints": { "min": 0, "max": 100 },
+      "description": "Fraud risk score from 0 (safe) to 100 (high risk)"
+    },
+    {
+      "name": "fees",
+      "type": "number.decimal",
+      "nullable": true,
+      "description": "Transaction fees charged (null if no fees)"
+    },
+    {
+      "name": "metadata",
+      "type": "map",
+      "fields": [
+        { "name": "channel", "type": "string", "enum": ["web", "mobile", "atm", "branch", "api"] },
+        { "name": "ipAddress", "type": "string", "nullable": true },
+        { "name": "deviceId", "type": "string", "nullable": true }
+      ]
+    },
+    {
+      "name": "createdAt",
+      "type": "timestamp.epoch",
+      "required": true
+    }
+  ]
+}

@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chaim.dev/schemas/bprint.schema.json",
+  "title": "Chaim Blueprint (.bprint)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "entityName",
+    "description",
+    "identity",
+    "fields"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": ["string", "number"],
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Your entity schema version in major.minor format (e.g., '1.0', '1.1', '2.0'). You control this value — bump it each time you change the schema. Not related to the Chaim spec version. Numeric & string values accepted."
+    },
+    "entityName": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Z][a-zA-Z0-9]*$",
+      "description": "Entity name used as the generated class/type name. Must be PascalCase (e.g., 'Customer', 'Order', 'OrderItem')."
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the entity and its purpose."
+    },
+    "identity": {
+      "$ref": "#/$defs/identity"
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "required": ["fields"],
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "Ordered list of field names that uniquely identify this entity. For DynamoDB: fields[0] = partition key, fields[1] = sort key (optional). For SQL: maps to PRIMARY KEY (field1, field2, ...)."
+        }
+      }
+    },
+    "fieldType": {
+      "type": "string",
+      "description": "A valid .bprint field type. Bare types: string, boolean, binary, list, map, stringSet. Typed variants: number[.int|.long|.float|.double|.decimal], timestamp[.epoch|.date], numberSet[.int|.long|.float|.double|.decimal].",
+      "pattern": "^(string|boolean|binary|list|map|stringSet|number(\\.(?:int|long|float|double|decimal))?|timestamp(\\.(?:epoch|date))?|numberSet(\\.(?:int|long|float|double|decimal))?)$"
+    },
+    "itemsFieldType": {
+      "type": "string",
+      "description": "A valid type for list/map item elements (excludes collection types: list, stringSet, numberSet).",
+      "pattern": "^(string|boolean|binary|map|number(\\.(?:int|long|float|double|decimal))?|timestamp(\\.(?:epoch|date))?)$"
+    },
+    "nestedFieldType": {
+      "type": "string",
+      "description": "A valid type inside a nested map or list items block (excludes stringSet, numberSet).",
+      "pattern": "^(string|boolean|binary|map|list|number(\\.(?:int|long|float|double|decimal))?|timestamp(\\.(?:epoch|date))?)$"
+    },
+    "field": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nameOverride": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+          "description": "Optional override for the generated code identifier. Must be a valid identifier in all target languages."
+        },
+        "type": {
+          "$ref": "#/$defs/fieldType"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "nullable": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the field explicitly allows null values. Generators emit nullable/wrapper types (e.g., Integer instead of int in Java, Optional[int] in Python)."
+        },
+        "default": {
+          "type": ["string", "number", "boolean"]
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": ["string", "number"]
+          },
+          "minItems": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Validation constraints for the field value",
+          "additionalProperties": false,
+          "properties": {
+            "minLength": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum string length (applies to string type)"
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Maximum string length (applies to string type)"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern for validation (applies to string type)"
+            },
+            "min": {
+              "type": "number",
+              "description": "Minimum value (applies to number type)"
+            },
+            "max": {
+              "type": "number",
+              "description": "Maximum value (applies to number type)"
+            }
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Extensible metadata annotations for the field",
+          "additionalProperties": true
+        },
+        "items": {
+          "type": "object",
+          "description": "Element type definition for list fields",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/itemsFieldType"
+            },
+            "fields": {
+              "type": "array",
+              "description": "Nested fields when items type is map",
+              "items": { "$ref": "#/$defs/nestedField" },
+              "minItems": 1
+            }
+          }
+        },
+        "fields": {
+          "type": "array",
+          "description": "Nested field definitions for map type fields",
+          "items": { "$ref": "#/$defs/nestedField" },
+          "minItems": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "list" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["items"] }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "map" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["fields"] }
+        }
+      ]
+    },
+    "nestedField": {
+      "type": "object",
+      "description": "Field definition for nested map structures. Supports recursive nesting via map and list types.",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nameOverride": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+          "description": "Optional override for the generated code identifier. Must be a valid identifier in all target languages."
+        },
+        "type": {
+          "$ref": "#/$defs/nestedFieldType"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "nullable": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, the field explicitly allows null values. Generators emit nullable/wrapper types."
+        },
+        "default": {
+          "type": ["string", "number", "boolean"]
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": ["string", "number"]
+          },
+          "minItems": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Validation constraints for the field value",
+          "additionalProperties": false,
+          "properties": {
+            "minLength": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum string length (applies to string type)"
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Maximum string length (applies to string type)"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern for validation (applies to string type)"
+            },
+            "min": {
+              "type": "number",
+              "description": "Minimum value (applies to number type)"
+            },
+            "max": {
+              "type": "number",
+              "description": "Maximum value (applies to number type)"
+            }
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Extensible metadata annotations for the field",
+          "additionalProperties": true
+        },
+        "fields": {
+          "type": "array",
+          "description": "Nested field definitions (required when type is map)",
+          "items": { "$ref": "#/$defs/nestedField" },
+          "minItems": 1
+        },
+        "items": {
+          "type": "object",
+          "description": "Element type definition (required when type is list)",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/itemsFieldType"
+            },
+            "fields": {
+              "type": "array",
+              "description": "Nested fields when items type is map",
+              "items": { "$ref": "#/$defs/nestedField" },
+              "minItems": 1
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "map" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["fields"] }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "list" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["items"] }
+        }
+      ]
+    }
+  }
+}

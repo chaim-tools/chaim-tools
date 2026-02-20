@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Product",
+  "description": "Product catalog with custom annotations and constraints",
+  "identity": {
+    "fields": ["pk", "sk"]
+  },
+  "fields": [
+    {
+      "name": "pk",
+      "type": "string",
+      "required": true,
+      "description": "Partition key - PRODUCT#<productId>"
+    },
+    {
+      "name": "sk",
+      "type": "string",
+      "required": true,
+      "description": "Sort key - VERSION#<version>"
+    },
+    {
+      "name": "productId",
+      "type": "string",
+      "required": true,
+      "description": "Unique product identifier"
+    },
+    {
+      "name": "version",
+      "type": "number",
+      "required": true,
+      "description": "Product version number"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "required": true,
+      "description": "Product name",
+      "constraints": {
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "Product description",
+      "constraints": {
+        "maxLength": 2000
+      }
+    },
+    {
+      "name": "price",
+      "type": "number",
+      "required": true,
+      "description": "Product price in USD",
+      "constraints": {
+        "min": 0.01
+      },
+      "annotations": {
+        "currency": "USD",
+        "precision": 2,
+        "displayFormat": "currency"
+      }
+    },
+    {
+      "name": "category",
+      "type": "string",
+      "required": true,
+      "description": "Product category",
+      "enum": ["electronics", "clothing", "books", "home", "sports", "toys"]
+    },
+    {
+      "name": "stockQuantity",
+      "type": "number",
+      "required": true,
+      "description": "Current stock quantity",
+      "constraints": {
+        "min": 0
+      },
+      "annotations": {
+        "unit": "items",
+        "trackInventory": true
+      }
+    },
+    {
+      "name": "weight",
+      "type": "number",
+      "description": "Product weight in kg",
+      "constraints": {
+        "min": 0
+      },
+      "annotations": {
+        "unit": "kg",
+        "displayFormat": "decimal"
+      }
+    },
+    {
+      "name": "sku",
+      "type": "string",
+      "required": true,
+      "description": "Stock Keeping Unit",
+      "constraints": {
+        "pattern": "^[A-Z0-9-]+$",
+        "minLength": 5,
+        "maxLength": 20
+      }
+    },
+    {
+      "name": "isAvailable",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether product is available for purchase"
+    },
+    {
+      "name": "launchedAt",
+      "type": "timestamp",
+      "description": "Product launch date"
+    }
+  ]
+}

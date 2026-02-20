@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "MedicalRecord",
+  "description": "Patient medical history with vitals, medications, and clinical records for healthcare providers",
+  "identity": {
+    "fields": ["patientId", "recordDate"]
+  },
+  "fields": [
+    { "name": "recordId", "type": "string", "required": true },
+    { "name": "patientId", "type": "string", "required": true },
+    { "name": "providerId", "type": "string", "required": true },
+    {
+      "name": "recordDate",
+      "type": "timestamp.date",
+      "required": true,
+      "description": "Date of the clinical encounter (no time component)"
+    },
+    {
+      "name": "recordType",
+      "type": "string",
+      "required": true,
+      "enum": ["visit", "lab_result", "imaging", "prescription", "procedure"]
+    },
+    { "name": "diagnosis", "type": "string", "nullable": true },
+    {
+      "name": "vitalSigns",
+      "type": "map",
+      "nullable": true,
+      "description": "Patient vital signs at time of visit (null for non-visit records)",
+      "fields": [
+        { "name": "temperature", "type": "number.float", "description": "Body temperature in Fahrenheit" },
+        { "name": "heartRate", "type": "number.int", "description": "Heart rate in BPM" },
+        { "name": "systolicBP", "type": "number.int" },
+        { "name": "diastolicBP", "type": "number.int" },
+        { "name": "respiratoryRate", "type": "number.int" },
+        {
+          "name": "oxygenSaturation",
+          "type": "number.float",
+          "constraints": { "min": 0, "max": 100 },
+          "description": "SpO2 percentage"
+        },
+        {
+          "name": "bloodWork",
+          "type": "map",
+          "nullable": true,
+          "fields": [
+            { "name": "hemoglobin", "type": "number.float" },
+            { "name": "whiteBloodCells", "type": "number.float" },
+            { "name": "platelets", "type": "number.int" },
+            { "name": "glucose", "type": "number.int" },
+            { "name": "collectedAt", "type": "timestamp" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "medications",
+      "type": "list",
+      "description": "Medications prescribed or administered during visit",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "name", "type": "string" },
+          { "name": "dosage", "type": "string" },
+          { "name": "route", "type": "string", "enum": ["oral", "iv", "topical", "subcutaneous", "intramuscular"] },
+          { "name": "frequency", "type": "string" },
+          { "name": "startDate", "type": "timestamp.date" },
+          { "name": "endDate", "type": "timestamp.date", "nullable": true }
+        ]
+      }
+    },
+    {
+      "name": "procedures",
+      "type": "list",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "code", "type": "string" },
+          { "name": "name", "type": "string" },
+          { "name": "performedAt", "type": "timestamp" },
+          { "name": "notes", "type": "string", "nullable": true }
+        ]
+      }
+    },
+    {
+      "name": "attachments",
+      "type": "list",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "fileName", "type": "string" },
+          { "name": "fileType", "type": "string", "enum": ["pdf", "dicom", "jpeg", "png", "hl7"] },
+          { "name": "fileData", "type": "binary", "description": "Binary file content for small attachments" },
+          { "name": "uploadedAt", "type": "timestamp" }
+        ]
+      }
+    },
+    {
+      "name": "symptoms",
+      "type": "list",
+      "items": { "type": "string" }
+    },
+    { "name": "icdCodes", "type": "stringSet" },
+    { "name": "cptCodes", "type": "stringSet" },
+    { "name": "notes", "type": "string", "nullable": true },
+    {
+      "name": "isConfidential",
+      "type": "boolean",
+      "default": false,
+      "annotations": {
+        "accessControl": "provider-only",
+        "auditRequired": true
+      }
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true }
+  ]
+}

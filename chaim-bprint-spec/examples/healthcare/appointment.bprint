@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Appointment",
+  "description": "Patient appointment scheduling and management for healthcare clinics",
+  "identity": { 
+    "fields": ["appointmentId", "appointmentDate"]
+  },
+  "fields": [
+    { "name": "appointmentId", "type": "string", "required": true },
+    { "name": "patientId", "type": "string", "required": true },
+    { "name": "providerId", "type": "string", "required": true },
+    {
+      "name": "appointmentDate",
+      "type": "timestamp.date",
+      "required": true,
+      "description": "Scheduled appointment date (time-of-day tracked separately)"
+    },
+    {
+      "name": "startTime",
+      "type": "timestamp",
+      "required": true,
+      "description": "Full appointment start date-time as ISO-8601"
+    },
+    {
+      "name": "duration",
+      "type": "number.int",
+      "required": true,
+      "description": "Appointment duration in minutes",
+      "constraints": { "min": 5, "max": 480 }
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "enum": ["consultation", "follow_up", "procedure", "emergency", "telehealth"],
+      "required": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "enum": ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"],
+      "required": true
+    },
+    { "name": "notes", "type": "string", "nullable": true },
+    {
+      "name": "copayAmount",
+      "type": "number.decimal",
+      "nullable": true,
+      "description": "Patient copay amount (null if not applicable)"
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true }
+  ]
+}

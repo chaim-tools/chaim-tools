@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "1.1",
+  "action": "UPSERT",
+  "provider": "aws",
+  "accountId": "123456789012",
+  "region": "us-east-1",
+  "stackName": "ProductCatalogStack",
+  "datastoreType": "dynamodb",
+  "resourceName": "product-table",
+  "resourceId": "product-table__Product",
+  "identity": {
+    "stableResourceKey": "dynamodb:tableName:product-table"
+  },
+  "appId": "product-catalog-app",
+  "bindingId": "product-catalog-app:dynamodb:tableName:product-table:Product",
+  "tableId": "arn:aws:dynamodb:us-east-1:123456789012:table/product-table",
+  "entityId": "product-catalog-app:Product",
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "entityName": "Product",
+    "description": "Product catalog entity with inventory tracking",
+    "primaryKey": {
+      "partitionKey": "productId",
+      "sortKey": "version"
+    },
+    "fields": [
+      {
+        "name": "productId",
+        "type": "string",
+        "required": true,
+        "description": "Unique product identifier"
+      },
+      {
+        "name": "version",
+        "type": "number",
+        "required": true,
+        "description": "Product version number for tracking updates"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Product display name"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "description": "Detailed product description"
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": true,
+        "description": "Product price in cents"
+      },
+      {
+        "name": "inventory",
+        "type": "number",
+        "description": "Current inventory count"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "description": "Product category"
+      },
+      {
+        "name": "tags",
+        "type": "array",
+        "description": "Product tags for search and filtering"
+      },
+      {
+        "name": "createdAt",
+        "type": "number",
+        "description": "Creation timestamp (Unix epoch)"
+      },
+      {
+        "name": "updatedAt",
+        "type": "number",
+        "description": "Last update timestamp (Unix epoch)"
+      }
+    ]
+  },
+  "dataStore": {
+    "type": "dynamodb",
+    "tableArn": "arn:aws:dynamodb:us-east-1:123456789012:table/product-table",
+    "tableName": "product-table",
+    "partitionKey": "pk",
+    "sortKey": "sk",
+    "billingMode": "PAY_PER_REQUEST",
+    "streamEnabled": true,
+    "streamViewType": "NEW_AND_OLD_IMAGES",
+    "pointInTimeRecoveryEnabled": true,
+    "encryptionType": "DEFAULT"
+  },
+  "context": {
+    "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/ProductCatalogStack/a1b2c3d4"
+  },
+  "capturedAt": "2026-01-16T10:30:45.123Z",
+  "operation": {
+    "phase": "DEPLOY",
+    "eventId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "cfRequestId": "cf-req-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "requestType": "Create",
+    "failureMode": "BEST_EFFORT"
+  },
+  "hashes": {
+    "contentHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "schemaHash": "sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+  },
+  "producer": {
+    "component": "chaim-cdk",
+    "version": "1.2.0",
+    "runtime": "nodejs20.x",
+    "mode": "PUBLISHED"
+  }
+}

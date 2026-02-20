@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Example",
+  "description": "Minimal example with single entity for basic usage",
+  "identity": { "fields": ["id"] },
+  "fields": [
+    { "name": "id", "type": "string", "required": true },
+    { "name": "name", "type": "string", "required": true },
+    { "name": "email", "type": "string", "required": true },
+    { "name": "isActive", "type": "boolean", "default": true }
+  ]
+}

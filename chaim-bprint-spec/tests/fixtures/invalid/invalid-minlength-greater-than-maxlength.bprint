@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Invalid",
+  "description": "Invalid: minLength is greater than maxLength",
+  "identity": { "fields": ["id"] },
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "code",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "minLength": 20,
+        "maxLength": 5
+      }
+    }
+  ]
+}

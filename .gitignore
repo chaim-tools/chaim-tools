@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+
+# TypeScript build output
+dist/
+lib/
+
+# Java build output
+build/
+bin/
+*.class
+*.jar
+.gradle/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+chaim-credentials.json
+
+# Test output
+coverage/
+test-results/
+*.log
+
+# CDK
+cdk.out/
+cdk.context.json

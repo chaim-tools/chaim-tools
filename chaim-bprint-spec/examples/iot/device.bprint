@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Device",
+  "description": "IoT device registration, location, and configuration for sensor management",
+  "identity": { "fields": ["deviceId"] },
+  "fields": [
+    { "name": "deviceId", "type": "string", "required": true },
+    {
+      "name": "deviceType",
+      "type": "string",
+      "required": true,
+      "enum": ["temperature", "humidity", "pressure", "motion", "camera", "gps"]
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "required": true,
+      "constraints": { "minLength": 1, "maxLength": 100 }
+    },
+    { "name": "manufacturer", "type": "string", "required": true },
+    {
+      "name": "firmwareVersion",
+      "type": "string",
+      "required": true,
+      "constraints": { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+    },
+    {
+      "name": "2g-capable",
+      "type": "boolean",
+      "nameOverride": "twoGCapable",
+      "default": false,
+      "description": "Whether the device supports 2G cellular connectivity"
+    },
+    {
+      "name": "ip-address",
+      "type": "string",
+      "nameOverride": "ipAddress",
+      "nullable": true,
+      "constraints": {
+        "pattern": "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+      },
+      "description": "IPv4 address (null when device is offline or uses dynamic addressing)"
+    },
+    {
+      "name": "location",
+      "type": "map",
+      "required": true,
+      "description": "Physical location of the device",
+      "fields": [
+        { "name": "facilityName", "type": "string" },
+        { "name": "building", "type": "string" },
+        { "name": "floor", "type": "number.int" },
+        { "name": "zone", "type": "string" },
+        {
+          "name": "coordinates",
+          "type": "map",
+          "fields": [
+            { "name": "latitude", "type": "number.double" },
+            { "name": "longitude", "type": "number.double" },
+            { "name": "altitude", "type": "number.float", "nullable": true }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "configuration",
+      "type": "map",
+      "description": "Device configuration and thresholds",
+      "fields": [
+        { "name": "samplingIntervalMs", "type": "number.long", "description": "Sampling interval in milliseconds" },
+        { "name": "reportingIntervalMs", "type": "number.long", "description": "Reporting interval in milliseconds" },
+        {
+          "name": "thresholds",
+          "type": "map",
+          "fields": [
+            { "name": "minValue", "type": "number.double" },
+            { "name": "maxValue", "type": "number.double" },
+            { "name": "alertOnBreach", "type": "boolean" }
+          ]
+        },
+        {
+          "name": "calibration",
+          "type": "map",
+          "fields": [
+            { "name": "offset", "type": "number.float" },
+            { "name": "scale", "type": "number.float" },
+            { "name": "calibratedAt", "type": "timestamp" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "required": true,
+      "enum": ["online", "offline", "maintenance", "error"]
+    },
+    {
+      "name": "priorityLevel",
+      "type": "number.int",
+      "enum": [1, 2, 3],
+      "default": 2,
+      "description": "Device monitoring priority: 1=low, 2=normal, 3=critical"
+    },
+    {
+      "name": "networkInterfaces",
+      "type": "list",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "interfaceType", "type": "string", "enum": ["wifi", "ethernet", "cellular", "lora", "zigbee"] },
+          { "name": "macAddress", "type": "string" },
+          { "name": "signalStrength", "type": "number.int", "nullable": true }
+        ]
+      }
+    },
+    {
+      "name": "firmwareBlob",
+      "type": "binary",
+      "nullable": true,
+      "description": "Cached firmware binary for OTA updates (null when no pending update)"
+    },
+    { "name": "capabilities", "type": "stringSet" },
+    { "name": "assignedGroups", "type": "stringSet" },
+    {
+      "name": "supportedSampleRates",
+      "type": "numberSet.int",
+      "description": "Set of supported sampling rates in Hz"
+    },
+    { "name": "lastSeen", "type": "timestamp.epoch", "required": true },
+    { "name": "provisionedDate", "type": "timestamp.date", "required": true, "description": "Date the device was provisioned (no time component needed)" },
+    { "name": "createdAt", "type": "timestamp", "required": true }
+  ]
+}

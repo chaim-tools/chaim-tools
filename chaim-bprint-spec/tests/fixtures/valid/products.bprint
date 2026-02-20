@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Product",
+  "description": "Product catalog schema",
+  "identity": { 
+    "fields": ["productId", "categoryId"]
+  },
+  "fields": [
+    { "name": "productId", "type": "string", "required": true },
+    { "name": "categoryId", "type": "string", "required": true },
+    { "name": "name", "type": "string", "required": true },
+    { "name": "price", "type": "number", "required": true },
+    { "name": "inStock", "type": "boolean", "required": false },
+    { "name": "tags", "type": "string", "enum": ["electronics", "clothing", "books"], "required": false },
+    { "name": "createdAt", "type": "timestamp", "required": true }
+  ]
+}

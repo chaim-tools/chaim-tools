@@ -1,0 +1,49 @@
+{
+  "name": "@chaim-tools/cfn-provider-dynamodb-binding",
+  "version": "0.1.0",
+  "description": "CloudFormation Registry provider for Chaim::DynamoDB::Binding",
+  "main": "lib/handler.js",
+  "types": "lib/handler.d.ts",
+  "files": [
+    "lib",
+    "schema.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint . --ext .ts",
+    "clean": "rm -rf lib dist"
+  },
+  "keywords": [
+    "aws",
+    "cloudformation",
+    "registry",
+    "chaim",
+    "dynamodb"
+  ],
+  "author": "Chaim Builder",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.883.0",
+    "@aws-sdk/client-sts": "^3.883.0",
+    "@aws-sdk/client-dynamodb": "^3.883.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.0.0",
+    "typescript": "~5.0.0",
+    "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaim-tools/chaim-cdk.git"
+  }
+}
+

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "ComplianceAudit",
+  "description": "Compliance and audit trail for regulatory requirements in financial services",
+  "identity": { 
+    "fields": ["auditId", "eventTimestamp"]
+  },
+  "fields": [
+    { "name": "auditId", "type": "string", "required": true },
+    {
+      "name": "eventTimestamp",
+      "type": "timestamp.epoch",
+      "required": true,
+      "description": "Precise event time as epoch milliseconds for time-series ordering"
+    },
+    { "name": "userId", "type": "string", "required": true },
+    { "name": "action", "type": "string", "required": true },
+    { "name": "resourceType", "type": "string", "required": true },
+    { "name": "resourceId", "type": "string", "required": true },
+    { "name": "details", "type": "string", "nullable": true },
+    {
+      "name": "ipAddress",
+      "type": "string",
+      "nullable": true,
+      "constraints": {
+        "pattern": "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+      }
+    },
+    { "name": "userAgent", "type": "string", "nullable": true },
+    {
+      "name": "complianceCheck",
+      "type": "string",
+      "enum": ["passed", "failed", "warning"],
+      "nullable": true
+    },
+    {
+      "name": "severityLevel",
+      "type": "number.int",
+      "enum": [1, 2, 3, 4, 5],
+      "description": "Audit severity: 1=info, 2=low, 3=medium, 4=high, 5=critical"
+    },
+    {
+      "name": "retentionDays",
+      "type": "number.int",
+      "required": true,
+      "description": "Number of days this record must be retained for regulatory compliance",
+      "constraints": { "min": 30, "max": 2555 }
+    },
+    {
+      "name": "affectedFields",
+      "type": "stringSet",
+      "description": "Set of field names that were modified in this audit event"
+    },
+    {
+      "name": "requestPayload",
+      "type": "binary",
+      "nullable": true,
+      "description": "Raw request payload captured for forensic analysis"
+    }
+  ]
+}

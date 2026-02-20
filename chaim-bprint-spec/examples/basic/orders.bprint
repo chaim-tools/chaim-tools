@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Order",
+  "description": "Basic order management system for ACME Corporation",
+  "identity": { "fields": ["orderId"] },
+  "fields": [
+    { "name": "orderId", "type": "string", "required": true },
+    { "name": "customerId", "type": "string", "required": true },
+    {
+      "name": "amount",
+      "type": "number.decimal",
+      "required": true,
+      "description": "Order total amount"
+    },
+    { "name": "currency", "type": "string", "default": "USD" },
+    { "name": "orderDate", "type": "timestamp", "required": true }
+  ]
+}

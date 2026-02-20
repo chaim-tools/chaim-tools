@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.1",
+  "action": "DELETE",
+  "provider": "aws",
+  "accountId": "123456789012",
+  "region": "us-east-1",
+  "stackName": "ProductCatalogStack",
+  "datastoreType": "dynamodb",
+  "resourceName": "product-table",
+  "resourceId": "product-table__Product",
+  "identity": {
+    "stableResourceKey": "dynamodb:tableName:product-table"
+  },
+  "appId": "product-catalog-app",
+  "bindingId": "product-catalog-app:dynamodb:tableName:product-table:Product",
+  "tableId": "arn:aws:dynamodb:us-east-1:123456789012:table/product-table",
+  "entityId": "product-catalog-app:Product",
+  "schema": null,
+  "dataStore": {
+    "type": "dynamodb",
+    "tableArn": "arn:aws:dynamodb:us-east-1:123456789012:table/product-table",
+    "tableName": "product-table",
+    "partitionKey": "pk",
+    "sortKey": "sk",
+    "billingMode": "PAY_PER_REQUEST",
+    "streamEnabled": true,
+    "streamViewType": "NEW_AND_OLD_IMAGES",
+    "pointInTimeRecoveryEnabled": true,
+    "encryptionType": "DEFAULT"
+  },
+  "context": {
+    "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/ProductCatalogStack/a1b2c3d4"
+  },
+  "capturedAt": "2026-01-16T10:30:45.123Z",
+  "operation": {
+    "phase": "DELETE",
+    "eventId": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+    "cfRequestId": "cf-req-z9y8x7w6-v5u4-3210-zyxw-vu0987654321",
+    "requestType": "Delete",
+    "failureMode": "BEST_EFFORT"
+  },
+  "hashes": {
+    "contentHash": "sha256:4a5d113b8b0b1e5c8d0c9e2f3a1b4c5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1",
+    "schemaHash": null
+  },
+  "producer": {
+    "component": "chaim-cdk",
+    "version": "1.2.0",
+    "runtime": "nodejs20.x",
+    "mode": "PUBLISHED"
+  },
+  "delete": {
+    "reason": "BINDER_REMOVED",
+    "scope": "BINDING",
+    "deletedAt": "2026-01-16T10:35:20.456Z"
+  }
+}

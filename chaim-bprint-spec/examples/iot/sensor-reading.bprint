@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "SensorReading",
+  "description": "Time-series sensor data readings from IoT devices",
+  "identity": { 
+    "fields": ["deviceId", "readingTimestamp"]
+  },
+  "fields": [
+    { "name": "readingId", "type": "string", "required": true },
+    { "name": "deviceId", "type": "string", "required": true },
+    {
+      "name": "readingTimestamp",
+      "type": "timestamp.epoch",
+      "required": true,
+      "description": "Precise reading time as epoch milliseconds for time-series ordering"
+    },
+    {
+      "name": "value",
+      "type": "number.double",
+      "required": true,
+      "description": "Primary sensor reading value (unit specified in 'unit' field)"
+    },
+    { "name": "unit", "type": "string", "required": true },
+    {
+      "name": "quality",
+      "type": "string",
+      "enum": ["excellent", "good", "fair", "poor"],
+      "nullable": true,
+      "description": "Data quality assessment (null when quality could not be determined)"
+    },
+    {
+      "name": "accuracy",
+      "type": "number.float",
+      "nullable": true,
+      "description": "Measurement accuracy as a percentage (null if uncalibrated)",
+      "constraints": { "min": 0, "max": 100 }
+    },
+    {
+      "name": "batteryLevel",
+      "type": "number.int",
+      "nullable": true,
+      "description": "Device battery percentage (null for wired devices)",
+      "constraints": { "min": 0, "max": 100 }
+    },
+    {
+      "name": "signalStrength",
+      "type": "number.int",
+      "nullable": true,
+      "description": "Signal strength in dBm (null if not wireless)",
+      "constraints": { "min": -120, "max": 0 }
+    },
+    { "name": "processed", "type": "boolean", "default": false },
+    {
+      "name": "anomalyScore",
+      "type": "number.float",
+      "nullable": true,
+      "description": "ML-computed anomaly score (null if not yet analyzed)",
+      "constraints": { "min": 0, "max": 1 }
+    }
+  ]
+}

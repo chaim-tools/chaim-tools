@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Invalid",
+  "description": "Invalid: minLength constraint on number field",
+  "identity": { "fields": ["id"] },
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "quantity",
+      "type": "number",
+      "required": true,
+      "constraints": {
+        "minLength": 5
+      }
+    }
+  ]
+}

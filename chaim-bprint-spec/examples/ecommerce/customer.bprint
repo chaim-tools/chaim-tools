@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Customer",
+  "description": "Customer account information and profile data for e-commerce platform",
+  "identity": { "fields": ["customerId"] },
+  "fields": [
+    { "name": "customerId", "type": "string", "required": true },
+    {
+      "name": "email",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "minLength": 5,
+        "maxLength": 254,
+        "pattern": "^[^@]+@[^@]+\\.[^@]+$"
+      }
+    },
+    {
+      "name": "firstName",
+      "type": "string",
+      "required": true,
+      "constraints": { "minLength": 1, "maxLength": 50 }
+    },
+    {
+      "name": "lastName",
+      "type": "string",
+      "required": true,
+      "constraints": { "minLength": 1, "maxLength": 50 }
+    },
+    {
+      "name": "phone",
+      "type": "string",
+      "nullable": true,
+      "constraints": {
+        "minLength": 10,
+        "maxLength": 20,
+        "pattern": "^\\+?[0-9\\-\\s]+$"
+      }
+    },
+    {
+      "name": "dateOfBirth",
+      "type": "timestamp.date",
+      "nullable": true,
+      "description": "Customer date of birth as ISO-8601 date"
+    },
+    { "name": "isActive", "type": "boolean", "default": true },
+    {
+      "name": "membershipTier",
+      "type": "string",
+      "enum": ["bronze", "silver", "gold", "platinum"],
+      "nullable": true,
+      "description": "Loyalty tier (null for non-members)"
+    },
+    {
+      "name": "loyaltyPoints",
+      "type": "number.long",
+      "default": 0,
+      "description": "Accumulated loyalty points"
+    },
+    {
+      "name": "avatarImage",
+      "type": "binary",
+      "nullable": true,
+      "description": "Customer avatar image (max 200KB)"
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true },
+    { "name": "lastLoginAt", "type": "timestamp.epoch", "nullable": true }
+  ]
+}

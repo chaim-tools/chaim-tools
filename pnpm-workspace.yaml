@@ -1,0 +1,6 @@
+packages:
+  - 'chaim-bprint-spec'
+  - 'chaim-cdk'
+  - 'chaim-cdk/packages/*'
+  - 'chaim-cli'
+  - 'chaim-client-java'

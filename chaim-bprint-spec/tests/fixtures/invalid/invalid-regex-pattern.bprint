@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Invalid",
+  "description": "Invalid: malformed regex pattern",
+  "identity": { "fields": ["id"] },
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "code",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "pattern": "[invalid(regex"
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "chaim-cdk",
+  "version": "0.1.4",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && vitest run",
+    "test:packages": "npm run test --workspaces --if-present",
+    "test:root": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --coverage",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present && rm -rf cdk.out && rm -rf packages/examples/*/cdk.out"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-cloudformation": "^3.883.0",
+    "@aws-sdk/client-dynamodb": "^3.883.0",
+    "@aws-sdk/client-secrets-manager": "^3.883.0",
+    "@aws-sdk/client-sts": "^3.883.0",
+    "@chaim-tools/chaim-bprint-spec": "^0.2.5",
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "aws-cdk-lib": "^2.0.0",
+    "constructs": "^10.0.0",
+    "typescript": "~5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaim-tools/chaim-cdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chaim-tools/chaim-cdk/issues"
+  },
+  "homepage": "https://github.com/chaim-tools/chaim-cdk#readme"
+}

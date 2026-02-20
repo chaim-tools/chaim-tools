@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Product",
+  "description": "Product catalog with specifications, images, and pricing for e-commerce platform",
+  "identity": { "fields": ["productId"] },
+  "fields": [
+    { "name": "productId", "type": "string", "required": true },
+    {
+      "name": "name",
+      "type": "string",
+      "required": true,
+      "constraints": { "minLength": 1, "maxLength": 200 }
+    },
+    { "name": "description", "type": "string", "nullable": true },
+    {
+      "name": "category",
+      "type": "string",
+      "required": true,
+      "enum": ["electronics", "clothing", "books", "home", "sports", "toys", "grocery"]
+    },
+    {
+      "name": "brand",
+      "type": "string",
+      "required": true,
+      "constraints": { "minLength": 1, "maxLength": 100 }
+    },
+    {
+      "name": "price",
+      "type": "number.decimal",
+      "required": true,
+      "description": "Product price in the store currency",
+      "constraints": { "min": 0, "max": 999999.99 }
+    },
+    { "name": "currency", "type": "string", "default": "USD" },
+    {
+      "name": "sku",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "minLength": 6,
+        "maxLength": 20,
+        "pattern": "^[A-Z0-9\\-]+$"
+      }
+    },
+    {
+      "name": "weight",
+      "type": "number.float",
+      "nullable": true,
+      "description": "Product weight in kilograms (null for digital products)",
+      "constraints": { "min": 0, "max": 500 }
+    },
+    {
+      "name": "dimensions",
+      "type": "map",
+      "nullable": true,
+      "description": "Product dimensions in centimeters (null for digital products)",
+      "fields": [
+        { "name": "length", "type": "number.float" },
+        { "name": "width", "type": "number.float" },
+        { "name": "height", "type": "number.float" }
+      ]
+    },
+    {
+      "name": "specifications",
+      "type": "map",
+      "description": "Technical specifications grouped by category",
+      "fields": [
+        { "name": "material", "type": "string", "nullable": true },
+        { "name": "color", "type": "string", "nullable": true },
+        {
+          "name": "warranty",
+          "type": "map",
+          "nullable": true,
+          "fields": [
+            { "name": "durationMonths", "type": "number.int" },
+            { "name": "provider", "type": "string" },
+            { "name": "coverage", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "images",
+      "type": "list",
+      "description": "Product image metadata",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "url", "type": "string" },
+          { "name": "altText", "type": "string" },
+          { "name": "isPrimary", "type": "boolean" },
+          { "name": "sortOrder", "type": "number.int" }
+        ]
+      }
+    },
+    {
+      "name": "stockQuantity",
+      "type": "number.int",
+      "required": true,
+      "description": "Current available stock count",
+      "constraints": { "min": 0 }
+    },
+    {
+      "name": "ratingTier",
+      "type": "number.int",
+      "enum": [1, 2, 3, 4, 5],
+      "nullable": true,
+      "description": "Aggregated product rating: 1=poor, 2=fair, 3=good, 4=great, 5=excellent (null if no reviews)"
+    },
+    {
+      "name": "thumbnail",
+      "type": "binary",
+      "nullable": true,
+      "description": "Small thumbnail image for search results (max 50KB)"
+    },
+    {
+      "name": "searchKeywords",
+      "type": "list",
+      "items": { "type": "string" }
+    },
+    { "name": "relatedSkus", "type": "stringSet" },
+    { "name": "tags", "type": "stringSet" },
+    {
+      "name": "availableSizes",
+      "type": "numberSet.int",
+      "description": "Set of available clothing/shoe sizes as integers"
+    },
+    {
+      "name": "availableWeights",
+      "type": "numberSet.double",
+      "nullable": true,
+      "description": "Set of available weight variants in kg (null for non-weight products)"
+    },
+    { "name": "isActive", "type": "boolean", "default": true },
+    { "name": "createdAt", "type": "timestamp", "required": true },
+    { "name": "updatedAt", "type": "timestamp", "required": true }
+  ]
+}

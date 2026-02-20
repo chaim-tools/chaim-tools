@@ -1,0 +1,46 @@
+{
+  "name": "@chaim-tools/activator",
+  "version": "0.1.0",
+  "description": "CDK stack to activate Chaim::DynamoDB::Binding CloudFormation Registry type",
+  "main": "lib/activator-stack.js",
+  "types": "lib/activator-stack.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy",
+    "diff": "cdk diff",
+    "lint": "eslint . --ext .ts",
+    "clean": "rm -rf dist cdk.out && find lib -name '*.js' -o -name '*.d.ts' -o -name '*.js.map' 2>/dev/null | xargs rm -f 2>/dev/null || true"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "cloudformation",
+    "registry",
+    "chaim"
+  ],
+  "author": "Chaim Builder",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "aws-cdk-lib": "^2.0.0",
+    "constructs": "^10.0.0",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "aws-cdk": "^2.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "~5.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaim-tools/chaim-cdk.git"
+  }
+}
+

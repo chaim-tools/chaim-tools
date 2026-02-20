@@ -1,0 +1,16 @@
+# Build outputs
+dist/
+
+# Dependencies
+node_modules/
+
+# Package lock
+package-lock.json
+
+# Blueprint files (JSON but custom format)
+*.bprint
+
+# Coverage
+coverage/
+
+

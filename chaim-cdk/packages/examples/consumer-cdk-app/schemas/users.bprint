@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "User",
+  "description": "User account information and profile data",
+  "identity": {
+    "fields": ["userId"]
+  },
+  "fields": [
+    {
+      "name": "userId",
+      "type": "string",
+      "required": true,
+      "description": "Unique user identifier",
+      "constraints": {
+        "minLength": 8,
+        "maxLength": 36
+      }
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "required": true,
+      "description": "User's email address",
+      "constraints": {
+        "minLength": 5,
+        "maxLength": 254,
+        "pattern": "^[^@]+@[^@]+\\.[^@]+$"
+      }
+    },
+    {
+      "name": "firstName",
+      "type": "string",
+      "required": true,
+      "description": "User's first name",
+      "constraints": {
+        "minLength": 1,
+        "maxLength": 50
+      }
+    },
+    {
+      "name": "lastName",
+      "type": "string",
+      "required": true,
+      "description": "User's last name",
+      "constraints": {
+        "minLength": 1,
+        "maxLength": 50
+      }
+    },
+    {
+      "name": "role",
+      "type": "string",
+      "required": true,
+      "description": "User's role in the system",
+      "enum": ["admin", "editor", "viewer", "guest"],
+      "default": "viewer"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "required": false,
+      "description": "Account status",
+      "enum": ["active", "inactive", "suspended", "pending_verification"],
+      "default": "pending_verification"
+    },
+    {
+      "name": "age",
+      "type": "number",
+      "required": false,
+      "description": "User's age in years",
+      "constraints": {
+        "min": 13,
+        "max": 120
+      }
+    },
+    {
+      "name": "loginCount",
+      "type": "number",
+      "required": false,
+      "description": "Total number of logins",
+      "default": 0,
+      "constraints": {
+        "min": 0
+      }
+    },
+    {
+      "name": "isActive",
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Whether the user account is active"
+    },
+    {
+      "name": "createdAt",
+      "type": "timestamp",
+      "required": true,
+      "description": "Account creation timestamp"
+    },
+    {
+      "name": "lastLoginAt",
+      "type": "timestamp",
+      "required": false,
+      "description": "Last login timestamp"
+    }
+  ]
+}

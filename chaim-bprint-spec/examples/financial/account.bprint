@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Account",
+  "description": "Bank account information, balance tracking, and signatories for financial services",
+  "identity": { "fields": ["accountId"] },
+  "fields": [
+    { "name": "accountId", "type": "string", "required": true },
+    { "name": "customerId", "type": "string", "required": true },
+    {
+      "name": "accountNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "minLength": 10,
+        "maxLength": 17,
+        "pattern": "^[0-9]+$"
+      }
+    },
+    {
+      "name": "accountType",
+      "type": "string",
+      "required": true,
+      "enum": ["checking", "savings", "credit", "investment"]
+    },
+    {
+      "name": "balance",
+      "type": "number.decimal",
+      "required": true,
+      "constraints": { "min": -1000000, "max": 1000000000 },
+      "description": "Current account balance in the account currency"
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "default": "USD",
+      "constraints": { "minLength": 3, "maxLength": 3 }
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "required": true,
+      "enum": ["active", "suspended", "closed", "frozen"]
+    },
+    {
+      "name": "limits",
+      "type": "map",
+      "description": "Account transaction limits",
+      "fields": [
+        { "name": "dailyWithdrawal", "type": "number.decimal" },
+        { "name": "dailyTransfer", "type": "number.decimal" },
+        { "name": "monthlyTransfer", "type": "number.decimal" },
+        { "name": "singleTransactionMax", "type": "number.decimal" }
+      ]
+    },
+    {
+      "name": "signatories",
+      "type": "list",
+      "description": "Authorized signatories on the account",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "customerId", "type": "string" },
+          { "name": "name", "type": "string" },
+          { "name": "role", "type": "string", "enum": ["primary", "secondary", "authorized"] },
+          { "name": "addedAt", "type": "timestamp" },
+          {
+            "name": "permissions",
+            "type": "map",
+            "fields": [
+              { "name": "canWithdraw", "type": "boolean" },
+              { "name": "canTransfer", "type": "boolean" },
+              { "name": "canClose", "type": "boolean" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "interestRate",
+      "type": "number.float",
+      "nullable": true,
+      "description": "Annual interest rate as a percentage (null for non-interest-bearing accounts)",
+      "constraints": { "min": 0, "max": 30 }
+    },
+    {
+      "name": "overdraftLimit",
+      "type": "number.decimal",
+      "nullable": true,
+      "description": "Maximum overdraft amount allowed (null if overdraft not enabled)"
+    },
+    {
+      "name": "recentTransactions",
+      "type": "list",
+      "items": {
+        "type": "map",
+        "fields": [
+          { "name": "transactionId", "type": "string" },
+          { "name": "amount", "type": "number.decimal" },
+          { "name": "type", "type": "string" },
+          { "name": "timestamp", "type": "timestamp.epoch" }
+        ]
+      }
+    },
+    { "name": "linkedAccountIds", "type": "stringSet" },
+    { "name": "openedDate", "type": "timestamp.date", "required": true },
+    { "name": "lastActivityDate", "type": "timestamp", "required": true },
+    { "name": "isJointAccount", "type": "boolean", "default": false },
+    {
+      "name": "complianceTier",
+      "type": "number.int",
+      "enum": [1, 2, 3, 4],
+      "description": "Regulatory compliance tier: 1=basic, 2=enhanced, 3=premium, 4=institutional"
+    }
+  ]
+}

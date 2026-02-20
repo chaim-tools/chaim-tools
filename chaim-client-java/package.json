@@ -1,0 +1,55 @@
+{
+  "name": "@chaim-tools/client-java",
+  "version": "0.1.12",
+  "description": "Java code generation and SDK creation for Chaim schemas",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "npm run build:java && npm run build:ts && npm run bundle:jar",
+    "build:java": "./gradlew build",
+    "build:ts": "tsc",
+    "bundle:jar": "mkdir -p dist/jars && cp codegen-java/build/libs/codegen-java-*.jar dist/jars/",
+    "clean": "./gradlew clean && rm -rf dist",
+    "test": "./gradlew test",
+    "test:java": "./gradlew test",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
+  },
+  "keywords": [
+    "chaim",
+    "java",
+    "code-generation",
+    "dynamodb",
+    "sdk",
+    "schema"
+  ],
+  "author": "Chaim Builder",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaim-tools/chaim-client-java.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chaim-tools/chaim-client-java/issues"
+  },
+  "homepage": "https://github.com/chaim-tools/chaim-client-java#readme",
+  "dependencies": {
+    "@chaim-tools/chaim-bprint-spec": "^0.2.7",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0",
+  "entityName": "Customer",
+  "description": "Customer profile and KYC information for financial services",
+  "identity": { "fields": ["customerId"] },
+  "fields": [
+    { "name": "customerId", "type": "string", "required": true },
+    {
+      "name": "ssn",
+      "type": "string",
+      "required": true,
+      "annotations": { "sensitivity": "PII", "classification": "restricted" }
+    },
+    { "name": "firstName", "type": "string", "required": true },
+    { "name": "lastName", "type": "string", "required": true },
+    {
+      "name": "dateOfBirth",
+      "type": "timestamp.date",
+      "required": true,
+      "description": "Customer date of birth as ISO-8601 date"
+    },
+    { "name": "email", "type": "string", "required": true },
+    { "name": "phone", "type": "string", "required": true },
+    { "name": "address", "type": "string", "required": true },
+    {
+      "name": "kycStatus",
+      "type": "string",
+      "enum": ["pending", "verified", "rejected"],
+      "required": true
+    },
+    {
+      "name": "riskCategory",
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "nullable": true,
+      "description": "Customer risk classification (null until KYC is completed)"
+    },
+    {
+      "name": "netWorth",
+      "type": "number.decimal",
+      "nullable": true,
+      "description": "Declared net worth for suitability assessment"
+    },
+    {
+      "name": "annualIncome",
+      "type": "number.long",
+      "nullable": true,
+      "description": "Annual income in whole currency units"
+    },
+    {
+      "name": "identificationDocument",
+      "type": "binary",
+      "nullable": true,
+      "description": "Scanned identification document for KYC verification"
+    },
+    { "name": "createdAt", "type": "timestamp", "required": true },
+    { "name": "lastUpdated", "type": "timestamp", "required": true }
+  ]
+}

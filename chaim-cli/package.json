@@ -1,0 +1,66 @@
+{
+  "name": "@chaim-tools/chaim",
+  "version": "0.1.16",
+  "description": "Schema-driven code generation tool for DynamoDB - Pure TypeScript CLI",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "shared/scripts",
+    "shared/templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "chaim": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "npm run build:cli",
+    "build:cli": "npx tsc",
+    "setup": "./shared/scripts/setup.sh",
+    "clean": "rm -rf dist",
+    "test": "npx vitest",
+    "lint": "npx eslint . --ext .ts",
+    "lint:fix": "npx eslint . --ext .ts --fix",
+    "dev": "npx ts-node src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "chaim",
+    "cli",
+    "code-generation",
+    "dynamodb",
+    "schema",
+    "typescript"
+  ],
+  "author": "Chaim Builder",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chaim-tools/chaim-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chaim-tools/chaim-cli/issues"
+  },
+  "homepage": "https://github.com/chaim-tools/chaim-cli#readme",
+  "dependencies": {
+    "@aws-sdk/client-sts": "^3.883.0",
+    "@chaim-tools/chaim-bprint-spec": "^0.2.7",
+    "@chaim-tools/client-java": "^0.1.12",
+    "chalk": "^4.1.2",
+    "commander": "^11.0.0",
+    "ora": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "~5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
