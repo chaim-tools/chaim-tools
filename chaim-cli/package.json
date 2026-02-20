@@ -22,7 +22,7 @@
     "build:cli": "npx tsc",
     "setup": "./shared/scripts/setup.sh",
     "clean": "rm -rf dist",
-    "test": "npx vitest",
+    "test": "npx vitest --run",
     "lint": "npx eslint . --ext .ts",
     "lint:fix": "npx eslint . --ext .ts --fix",
     "dev": "npx ts-node src/index.ts",
