@@ -10,6 +10,15 @@ set -euo pipefail
 #   ./scripts/release.sh major            # 0.2.7 → 1.0.0
 #   ./scripts/release.sh patch --dry-run  # preview without making changes
 #
+# Pipeline:
+#   Pre-flight  → check npm login, clean git tree, packages exist
+#   Phase 0     → build + test all packages on CURRENT code (no files touched)
+#   Confirm     → prompt user to proceed
+#   Phase 1     → bump versions + update cross-package deps in package.json
+#   Phase 2     → rebuild with bumped versions
+#   Phase 3     → npm publish (dependency order)
+#   Phase 4     → git commit + tag + push
+#
 # Prerequisites:
 #   - npm login (run once — token persists in ~/.npmrc)
 #   - Clean git working tree
@@ -120,6 +129,41 @@ if $DRY_RUN; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Phase 0: Validate — build + test on current code BEFORE any mutations
+# ─────────────────────────────────────────────────────────────────────────────
+
+log "VALIDATE" "Building and testing all packages on current code (no files modified yet)..."
+
+for i in $(seq 0 $((PKG_COUNT - 1))); do
+  dir="${PKG_DIRS[$i]}"
+  name="${PKG_NAMES[$i]}"
+  cd "$ROOT_DIR/$dir"
+
+  echo -ne "  Building $name..."
+  if npm run build > /tmp/chaim-validate-build-$$.log 2>&1; then
+    echo -e " ${GREEN}✓${NC}"
+  else
+    echo -e " ${RED}✗${NC}"
+    tail -20 /tmp/chaim-validate-build-$$.log
+    fail "$name build failed — no versions were changed" "Fix the build errors, commit your fix, then re-run."
+  fi
+
+  has_test=$(node -p "require('./package.json').scripts?.test || ''" 2>/dev/null)
+  if [[ -n "$has_test" ]]; then
+    echo -ne "  Testing $name..."
+    if npm test > /tmp/chaim-validate-test-$$.log 2>&1; then
+      echo -e " ${GREEN}✓${NC}"
+    else
+      echo -e " ${RED}✗${NC}"
+      tail -20 /tmp/chaim-validate-test-$$.log
+      fail "$name tests failed — no versions were changed" "Fix the failing tests, commit your fix, then re-run."
+    fi
+  fi
+done
+
+ok "All packages build and pass tests"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Confirm
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -162,35 +206,23 @@ done
 ok "Cross-dependencies updated"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Phase 2: Build + test
+# Phase 2: Rebuild with bumped versions
 # ─────────────────────────────────────────────────────────────────────────────
 
-log "BUILD" "Building and testing each package..."
+log "REBUILD" "Rebuilding packages with updated versions..."
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
   dir="${PKG_DIRS[$i]}"
   name="${PKG_NAMES[$i]}"
   cd "$ROOT_DIR/$dir"
 
-  echo -ne "  Building $name..."
+  echo -ne "  Building $name@${NEW_VERS[$i]}..."
   if npm run build > /tmp/chaim-build-$$.log 2>&1; then
     echo -e " ${GREEN}✓${NC}"
   else
     echo -e " ${RED}✗${NC}"
     tail -20 /tmp/chaim-build-$$.log
-    fail "$name build failed — see errors above" "Fix the build errors, commit your fix, then re-run."
-  fi
-
-  has_test=$(node -p "require('./package.json').scripts?.test || ''" 2>/dev/null)
-  if [[ -n "$has_test" ]]; then
-    echo -ne "  Testing $name..."
-    if npm test > /tmp/chaim-test-$$.log 2>&1; then
-      echo -e " ${GREEN}✓${NC}"
-    else
-      echo -e " ${RED}✗${NC}"
-      tail -20 /tmp/chaim-test-$$.log
-      fail "$name tests failed — see errors above" "Fix the failing tests, commit your fix, then re-run."
-    fi
+    fail "$name rebuild failed after version bump" "Versions were already bumped. Fix the build, then re-run.\n    If needed, reset versions: git checkout -- '*/package.json'"
   fi
 done
 
