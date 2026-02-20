@@ -37,7 +37,15 @@ NC='\033[0m'
 log()  { echo -e "\n${CYAN}${BOLD}[$1]${NC} $2"; }
 ok()   { echo -e "  ${GREEN}✓${NC} $1"; }
 warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
-fail() { echo -e "  ${RED}✗ $1${NC}"; exit 1; }
+fail() {
+  echo -e "  ${RED}✗ $1${NC}"
+  if [[ -n "${2:-}" ]]; then
+    echo -e "\n  ${BOLD}How to fix:${NC}"
+    echo -e "  $2"
+  fi
+  echo -e "\n  ${YELLOW}After fixing, re-run:${NC}  ./scripts/release.sh $BUMP_TYPE"
+  exit 1
+}
 
 bump_version() {
   local version="$1" bump="$2"
@@ -60,13 +68,13 @@ get_pkg_ver()  { node -p "require('$ROOT_DIR/$1/package.json').version"; }
 
 log "PRE-FLIGHT" "Checking prerequisites..."
 
-command -v npm >/dev/null 2>&1  || fail "npm not found"
-command -v node >/dev/null 2>&1 || fail "node not found"
-command -v java >/dev/null 2>&1 || fail "java not found (needed for client-java build)"
+command -v npm >/dev/null 2>&1  || fail "npm not found" "Install Node.js: https://nodejs.org"
+command -v node >/dev/null 2>&1 || fail "node not found" "Install Node.js: https://nodejs.org"
+command -v java >/dev/null 2>&1 || fail "java not found (needed for client-java build)" "Install Java 17+: brew install openjdk@17"
 
 if ! $DRY_RUN; then
   if ! npm whoami >/dev/null 2>&1; then
-    fail "Not logged in to npm. Run: npm login"
+    fail "Not logged in to npm" "Run:  npm login\n  Then re-run this script. The token persists in ~/.npmrc."
   fi
   ok "Logged in as $(npm whoami)"
 fi
@@ -74,14 +82,14 @@ fi
 cd "$ROOT_DIR"
 if [[ -n "$(git status --porcelain)" ]]; then
   if ! $DRY_RUN; then
-    fail "Working tree is dirty. Commit or stash changes first."
+    fail "Working tree is dirty — uncommitted changes detected" "Commit your changes first:\n    git add -A && git commit -m \"your message\" && git push"
   else
     warn "Working tree is dirty (ignored in dry-run)"
   fi
 fi
 
 for dir in "${PKG_DIRS[@]}"; do
-  [[ -f "$ROOT_DIR/$dir/package.json" ]] || fail "Package not found: $dir"
+  [[ -f "$ROOT_DIR/$dir/package.json" ]] || fail "Package not found: $dir" "Ensure you are running this script from the chaim-tools root directory."
 done
 ok "All packages found"
 
@@ -170,7 +178,7 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
   else
     echo -e " ${RED}✗${NC}"
     tail -20 /tmp/chaim-build-$$.log
-    fail "$name build failed"
+    fail "$name build failed — see errors above" "Fix the build errors, commit your fix, then re-run."
   fi
 
   has_test=$(node -p "require('./package.json').scripts?.test || ''" 2>/dev/null)
@@ -181,7 +189,7 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
     else
       echo -e " ${RED}✗${NC}"
       tail -20 /tmp/chaim-test-$$.log
-      fail "$name tests failed"
+      fail "$name tests failed — see errors above" "Fix the failing tests, commit your fix, then re-run."
     fi
   fi
 done
@@ -204,7 +212,7 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
   else
     echo -e " ${RED}✗${NC}"
     cat /tmp/chaim-pub-$$.log
-    fail "$name publish failed"
+    fail "$name@$ver publish failed — see errors above" "Common fixes:\n    - 'npm ERR! 403': version already exists on npm. Bump again or use a different version.\n    - 'npm ERR! 401': auth token expired. Run: npm login\n    - 'npm ERR! 402': scoped package requires paid plan or --access public."
   fi
 done
 
