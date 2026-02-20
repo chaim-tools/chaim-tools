@@ -22,6 +22,7 @@ set -euo pipefail
 # Prerequisites:
 #   - npm login (run once — token persists in ~/.npmrc)
 #   - Clean git working tree
+#   - If 2FA is enabled on npm, have your authenticator app ready for OTP
 # ─────────────────────────────────────────────────────────────────────────────
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -248,6 +249,13 @@ done
 
 log "PUBLISH" "Publishing to npm..."
 
+NPM_OTP_ARG=""
+echo ""
+read -p "  Does your npm account use 2FA? Enter OTP code (or press Enter to skip): " OTP_CODE
+if [[ -n "$OTP_CODE" ]]; then
+  NPM_OTP_ARG="--otp=$OTP_CODE"
+fi
+
 for i in $(seq 0 $((PKG_COUNT - 1))); do
   dir="${PKG_DIRS[$i]}"
   name="${PKG_NAMES[$i]}"
@@ -255,12 +263,12 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
   cd "$ROOT_DIR/$dir"
 
   echo -ne "  Publishing $name@$ver..."
-  if npm publish --access public > /tmp/chaim-pub-$$.log 2>&1; then
+  if npm publish --access public $NPM_OTP_ARG > /tmp/chaim-pub-$$.log 2>&1; then
     echo -e " ${GREEN}✓${NC}"
   else
     echo -e " ${RED}✗${NC}"
     cat /tmp/chaim-pub-$$.log
-    fail "$name@$ver publish failed — see errors above" "Common fixes:\n    - 'npm ERR! 403': version already exists on npm. Bump again or use a different version.\n    - 'npm ERR! 401': auth token expired. Run: npm login\n    - 'npm ERR! 402': scoped package requires paid plan or --access public."
+    fail "$name@$ver publish failed — see errors above" "Common fixes:\n    - 'EOTP': 2FA is enabled. Re-run the script and enter a fresh OTP code.\n    - 'npm ERR! 403': version already exists on npm. Bump again or use a different version.\n    - 'npm ERR! 401': auth token expired. Run: npm login\n    - 'npm ERR! 402': scoped package requires paid plan or --access public."
   fi
 done
 
