@@ -2634,13 +2634,13 @@ public class JavaGenerator {
         if (fields.isEmpty()) {
             toStringMethod.addStatement("return $S", className + "{}");
         } else {
-            toStringMethod.addStatement("return new $T($S, $S, $S)", stringJoinerClass,
-                ",\n  ", className + "{\n  ", "\n}")
-                .addCode(".add($S + $L)\n", fields.get(0).codeName + "=", fields.get(0).codeName);
+            toStringMethod.addCode("return new $T($S, $S, $S)\n", stringJoinerClass,
+                ",\n  ", className + "{\n  ", "\n}");
+            toStringMethod.addCode("    .add($S + $L)\n", fields.get(0).codeName + "=", fields.get(0).codeName);
             for (int i = 1; i < fields.size(); i++) {
-                toStringMethod.addCode(".add($S + $L)\n", fields.get(i).codeName + "=", fields.get(i).codeName);
+                toStringMethod.addCode("    .add($S + $L)\n", fields.get(i).codeName + "=", fields.get(i).codeName);
             }
-            toStringMethod.addCode(".toString();\n");
+            toStringMethod.addCode("    .toString();\n");
         }
         tb.addMethod(toStringMethod.build());
     }
