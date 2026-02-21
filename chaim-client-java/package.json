@@ -1,6 +1,6 @@
 {
   "name": "@chaim-tools/client-java",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Java code generation and SDK creation for Chaim schemas",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

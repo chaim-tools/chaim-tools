@@ -49,7 +49,7 @@
   "dependencies": {
     "@aws-sdk/client-sts": "^3.883.0",
     "@chaim-tools/chaim-bprint-spec": "^0.2.10",
-    "@chaim-tools/client-java": "^0.1.15",
+    "@chaim-tools/client-java": "^0.1.16",
     "chalk": "^4.1.2",
     "commander": "^11.0.0",
     "ora": "^5.4.1"
