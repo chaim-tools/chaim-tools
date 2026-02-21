@@ -1,6 +1,6 @@
 {
   "name": "@chaim-tools/client-java",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Java code generation and SDK creation for Chaim schemas",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,7 +42,7 @@
   },
   "homepage": "https://github.com/chaim-tools/chaim-client-java#readme",
   "dependencies": {
-    "@chaim-tools/chaim-bprint-spec": "^0.2.9",
+    "@chaim-tools/chaim-bprint-spec": "^0.2.10",
     "chalk": "^4.1.2"
   },
   "devDependencies": {
