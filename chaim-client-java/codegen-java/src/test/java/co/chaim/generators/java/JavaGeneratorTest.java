@@ -2566,13 +2566,12 @@ public class JavaGeneratorTest {
   }
 
   @Test
-  void generatesProjectionReadOverload() throws Exception {
+  void doesNotGenerateProjectionOverloadOnGetItem() throws Exception {
     Path out = tempDir.resolve("generated");
     generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
     String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
 
-    assertThat(content).contains("public Optional<User> findByKey(String userId, List<String> attributesToProject)");
-    assertThat(content).contains("attributesToProject(attributesToProject)");
+    assertThat(content).doesNotContain("attributesToProject");
   }
 
   @Test
@@ -2601,7 +2600,7 @@ public class JavaGeneratorTest {
     String content = Files.readString(out.resolve("com/example/model/repository/UserRepository.java"));
 
     assertThat(content).contains("public boolean existsByKey(String userId)");
-    assertThat(content).contains("attributesToProject(\"userId\")");
+    assertThat(content).contains("return table.getItem(key) != null");
   }
 
   @Test
@@ -2992,5 +2991,365 @@ public class JavaGeneratorTest {
 
     // query(pk, Expression filterExpression) should NOT exist for PK-only tables (no sort key = no query)
     assertThat(content).doesNotContain("query(String userId, Expression filterExpression)");
+  }
+
+  // =========================================================================
+  // Nested Validation Tests
+  // =========================================================================
+
+  @Test
+  void generatesNestedMapValidation() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Order";
+    schema.description = "Test nested map validation";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("orderId");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "orderId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field addressField = new BprintSchema.Field();
+    addressField.name = "shippingAddress";
+    addressField.type = "map";
+    addressField.required = true;
+
+    BprintSchema.NestedField street = new BprintSchema.NestedField();
+    street.name = "street";
+    street.type = "string";
+    street.required = true;
+
+    BprintSchema.NestedField city = new BprintSchema.NestedField();
+    city.name = "city";
+    city.type = "string";
+    city.required = true;
+
+    BprintSchema.NestedField zip = new BprintSchema.NestedField();
+    zip.name = "zipCode";
+    zip.type = "string";
+    zip.required = false;
+    zip.constraints = new BprintSchema.Constraints();
+    zip.constraints.maxLength = 10;
+
+    addressField.fields = List.of(street, city, zip);
+    schema.fields = List.of(pk, addressField);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, null);
+    String content = Files.readString(out.resolve("com/example/model/validation/OrderValidator.java"));
+
+    // Should validate required nested fields
+    assertThat(content).contains("shippingAddress.street");
+    assertThat(content).contains("shippingAddress.city");
+    assertThat(content).contains("is required but was null");
+    // Should validate nested string constraints
+    assertThat(content).contains("shippingAddress.zipCode");
+    assertThat(content).contains("maxLength");
+    // Should guard with null check on parent
+    assertThat(content).contains("entity.getShippingAddress() != null");
+  }
+
+  @Test
+  void generatesListItemValidation() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Order";
+    schema.description = "Test list item validation";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("orderId");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "orderId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field lineItems = new BprintSchema.Field();
+    lineItems.name = "lineItems";
+    lineItems.type = "list";
+    lineItems.required = true;
+
+    BprintSchema.ListItems items = new BprintSchema.ListItems();
+    items.type = "map";
+
+    BprintSchema.NestedField productId = new BprintSchema.NestedField();
+    productId.name = "productId";
+    productId.type = "string";
+    productId.required = true;
+
+    BprintSchema.NestedField quantity = new BprintSchema.NestedField();
+    quantity.name = "quantity";
+    quantity.type = "number.int";
+    quantity.required = true;
+    quantity.constraints = new BprintSchema.Constraints();
+    quantity.constraints.min = 1.0;
+
+    items.fields = List.of(productId, quantity);
+    lineItems.items = items;
+    schema.fields = List.of(pk, lineItems);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, null);
+    String content = Files.readString(out.resolve("com/example/model/validation/OrderValidator.java"));
+
+    // Should iterate over list items
+    assertThat(content).contains("entity.getLineItems() != null");
+    assertThat(content).contains("entity.getLineItems().size()");
+    assertThat(content).contains("entity.getLineItems().get(");
+    // Should validate required fields on list items with indexed path
+    assertThat(content).contains("lineItems[");
+    assertThat(content).contains("].productId");
+    assertThat(content).contains("is required but was null");
+    // Should validate number constraints on list items
+    assertThat(content).contains("].quantity");
+    assertThat(content).contains("min");
+  }
+
+  @Test
+  void generatesDeepNestedMapValidation() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Order";
+    schema.description = "Test deep nested validation";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("orderId");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "orderId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field addressField = new BprintSchema.Field();
+    addressField.name = "address";
+    addressField.type = "map";
+    addressField.required = true;
+
+    BprintSchema.NestedField coords = new BprintSchema.NestedField();
+    coords.name = "coordinates";
+    coords.type = "map";
+    coords.required = false;
+
+    BprintSchema.NestedField lat = new BprintSchema.NestedField();
+    lat.name = "lat";
+    lat.type = "number.double";
+    lat.required = true;
+
+    BprintSchema.NestedField lng = new BprintSchema.NestedField();
+    lng.name = "lng";
+    lng.type = "number.double";
+    lng.required = true;
+
+    coords.fields = List.of(lat, lng);
+    addressField.fields = List.of(coords);
+    schema.fields = List.of(pk, addressField);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, null);
+    String content = Files.readString(out.resolve("com/example/model/validation/OrderValidator.java"));
+
+    // Should validate deeply nested required fields
+    assertThat(content).contains("address.coordinates.lat");
+    assertThat(content).contains("address.coordinates.lng");
+    assertThat(content).contains("is required but was null");
+  }
+
+  // =========================================================================
+  // Secondary Index Annotation Tests
+  // =========================================================================
+
+  @Test
+  void generatesSecondaryPartitionKeyAnnotation() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Order";
+    schema.description = "Test GSI annotations";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("orderId");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "orderId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field customerId = new BprintSchema.Field();
+    customerId.name = "customerId";
+    customerId.type = "string";
+    customerId.required = true;
+
+    BprintSchema.Field status = new BprintSchema.Field();
+    status.name = "status";
+    status.type = "string";
+    status.required = true;
+
+    schema.fields = List.of(pk, customerId, status);
+
+    TableMetadata meta = new TableMetadata("test-table", null, null,
+        List.of(
+            new TableMetadata.GSIMetadata("CustomerIdIndex", "customerId", null, "ALL"),
+            new TableMetadata.GSIMetadata("StatusIndex", "status", null, "ALL")
+        ),
+        null);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, meta);
+    String content = Files.readString(out.resolve("com/example/model/Order.java"));
+
+    assertThat(content).contains("@DynamoDbSecondaryPartitionKey");
+    assertThat(content).contains("CustomerIdIndex");
+    assertThat(content).contains("StatusIndex");
+  }
+
+  @Test
+  void generatesSecondarySortKeyAnnotation() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Order";
+    schema.description = "Test GSI sort key annotations";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("orderId");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "orderId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field customerId = new BprintSchema.Field();
+    customerId.name = "customerId";
+    customerId.type = "string";
+    customerId.required = true;
+
+    BprintSchema.Field orderDate = new BprintSchema.Field();
+    orderDate.name = "orderDate";
+    orderDate.type = "timestamp";
+    orderDate.required = true;
+
+    schema.fields = List.of(pk, customerId, orderDate);
+
+    TableMetadata meta = new TableMetadata("test-table", null, null,
+        List.of(new TableMetadata.GSIMetadata("CustomerDateIndex", "customerId", "orderDate", "ALL")),
+        null);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, meta);
+    String content = Files.readString(out.resolve("com/example/model/Order.java"));
+
+    assertThat(content).contains("@DynamoDbSecondaryPartitionKey");
+    assertThat(content).contains("@DynamoDbSecondarySortKey");
+    assertThat(content).contains("CustomerDateIndex");
+  }
+
+  @Test
+  void generatesLSISortKeyAnnotation() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Product";
+    schema.description = "Test LSI annotations";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("productId", "category");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "productId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field sk = new BprintSchema.Field();
+    sk.name = "category";
+    sk.type = "string";
+    sk.required = true;
+
+    BprintSchema.Field price = new BprintSchema.Field();
+    price.name = "price";
+    price.type = "number.double";
+    price.required = true;
+
+    schema.fields = List.of(pk, sk, price);
+
+    TableMetadata meta = new TableMetadata("test-table", null, null,
+        null,
+        List.of(new TableMetadata.LSIMetadata("PriceIndex", "price", "ALL")));
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, meta);
+    String content = Files.readString(out.resolve("com/example/model/Product.java"));
+
+    assertThat(content).contains("@DynamoDbSecondarySortKey");
+    assertThat(content).contains("PriceIndex");
+    // PK should not have secondary partition key (LSIs share the table PK)
+    assertThat(content).doesNotContain("@DynamoDbSecondaryPartitionKey");
+  }
+
+  @Test
+  void generatesFieldWithMultipleIndexAnnotations() throws Exception {
+    BprintSchema schema = new BprintSchema();
+    schema.schemaVersion = "1.3";
+    schema.entityName = "Order";
+    schema.description = "Test multi-index field annotations";
+    BprintSchema.Identity id = new BprintSchema.Identity();
+    id.fields = List.of("orderId");
+    schema.identity = id;
+
+    BprintSchema.Field pk = new BprintSchema.Field();
+    pk.name = "orderId";
+    pk.type = "string";
+    pk.required = true;
+
+    BprintSchema.Field dateField = new BprintSchema.Field();
+    dateField.name = "orderDate";
+    dateField.type = "timestamp";
+    dateField.required = true;
+
+    BprintSchema.Field custField = new BprintSchema.Field();
+    custField.name = "customerId";
+    custField.type = "string";
+    custField.required = true;
+
+    BprintSchema.Field status = new BprintSchema.Field();
+    status.name = "status";
+    status.type = "string";
+    status.required = true;
+
+    schema.fields = List.of(pk, custField, status, dateField);
+
+    // orderDate is the sort key for two different GSIs
+    TableMetadata meta = new TableMetadata("test-table", null, null,
+        List.of(
+            new TableMetadata.GSIMetadata("CustomerDateIndex", "customerId", "orderDate", "ALL"),
+            new TableMetadata.GSIMetadata("StatusDateIndex", "status", "orderDate", "ALL")
+        ),
+        null);
+
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(schema), "com.example.model", out, meta);
+    String content = Files.readString(out.resolve("com/example/model/Order.java"));
+
+    // orderDate should list both indexes
+    assertThat(content).contains("@DynamoDbSecondarySortKey");
+    assertThat(content).contains("CustomerDateIndex");
+    assertThat(content).contains("StatusDateIndex");
+  }
+
+  // =========================================================================
+  // Improved toString() Tests
+  // =========================================================================
+
+  @Test
+  void generatesToStringWithStringJoiner() throws Exception {
+    Path out = tempDir.resolve("generated");
+    generator.generateForTable(List.of(userSchema), "com.example.model", out, tableMetadata);
+    String content = Files.readString(out.resolve("com/example/model/User.java"));
+
+    // Should use StringJoiner-based toString()
+    assertThat(content).contains("StringJoiner");
+    assertThat(content).contains("User{");
+    assertThat(content).contains(".add(\"userId=\" + userId)");
+    assertThat(content).contains(".add(\"email=\" + email)");
+    assertThat(content).contains(".toString()");
   }
 }

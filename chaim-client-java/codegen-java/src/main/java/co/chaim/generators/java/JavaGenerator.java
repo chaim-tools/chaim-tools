@@ -73,6 +73,10 @@ public class JavaGenerator {
         "software.amazon.awssdk.enhanced.dynamodb.mapper.annotations", "DynamoDbAttribute");
     private static final ClassName DYNAMO_DB_CONVERTED_BY = ClassName.get(
         "software.amazon.awssdk.enhanced.dynamodb.mapper.annotations", "DynamoDbConvertedBy");
+    private static final ClassName DYNAMO_DB_SECONDARY_PARTITION_KEY = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.mapper.annotations", "DynamoDbSecondaryPartitionKey");
+    private static final ClassName DYNAMO_DB_SECONDARY_SORT_KEY = ClassName.get(
+        "software.amazon.awssdk.enhanced.dynamodb.mapper.annotations", "DynamoDbSecondarySortKey");
 
     /**
      * Per-field descriptor used when generating plain-Java boilerplate
@@ -177,7 +181,7 @@ public class JavaGenerator {
         // 4. Generate entity + keys + validator + repository for each schema
         for (BprintSchema schema : schemas) {
             String entityName = deriveEntityName(schema);
-            generateEntity(schema, entityName, pkg, outDir);
+            generateEntity(schema, entityName, pkg, outDir, tableMetadata);
             generateEntityKeys(schema, entityName, pkg, outDir, tableMetadata);
             generateValidator(schema, entityName, pkg, outDir);
             if (tableMetadata != null) {
@@ -339,6 +343,38 @@ public class JavaGenerator {
             .build();
     }
 
+    /**
+     * Add @DynamoDbSecondaryPartitionKey and/or @DynamoDbSecondarySortKey annotations
+     * to a getter if this field participates in any GSI/LSI.
+     */
+    private static void addSecondaryIndexAnnotations(MethodSpec.Builder getter, String fieldName,
+            Map<String, List<String>> secondaryPkIndexes, Map<String, List<String>> secondarySkIndexes) {
+        List<String> pkIndexNames = secondaryPkIndexes.get(fieldName);
+        if (pkIndexNames != null && !pkIndexNames.isEmpty()) {
+            AnnotationSpec.Builder ann = AnnotationSpec.builder(DYNAMO_DB_SECONDARY_PARTITION_KEY);
+            CodeBlock.Builder indexArray = CodeBlock.builder().add("{");
+            for (int i = 0; i < pkIndexNames.size(); i++) {
+                if (i > 0) indexArray.add(", ");
+                indexArray.add("$S", pkIndexNames.get(i));
+            }
+            indexArray.add("}");
+            ann.addMember("indexNames", indexArray.build());
+            getter.addAnnotation(ann.build());
+        }
+        List<String> skIndexNames = secondarySkIndexes.get(fieldName);
+        if (skIndexNames != null && !skIndexNames.isEmpty()) {
+            AnnotationSpec.Builder ann = AnnotationSpec.builder(DYNAMO_DB_SECONDARY_SORT_KEY);
+            CodeBlock.Builder indexArray = CodeBlock.builder().add("{");
+            for (int i = 0; i < skIndexNames.size(); i++) {
+                if (i > 0) indexArray.add(", ");
+                indexArray.add("$S", skIndexNames.get(i));
+            }
+            indexArray.add("}");
+            ann.addMember("indexNames", indexArray.build());
+            getter.addAnnotation(ann.build());
+        }
+    }
+
     // =========================================================================
     // Entity Generation
     // =========================================================================
@@ -346,7 +382,7 @@ public class JavaGenerator {
     /**
      * Generate entity DTO with schema-defined keys annotated for DynamoDB.
      */
-    private void generateEntity(BprintSchema schema, String entityName, String pkg, Path outDir) throws IOException {
+    private void generateEntity(BprintSchema schema, String entityName, String pkg, Path outDir, TableMetadata tableMetadata) throws IOException {
         String pkFieldName = schema.identity.fields.get(0);
         String skFieldName = schema.identity.fields.size() > 1 ? schema.identity.fields.get(1) : null;
         boolean hasSortKey = skFieldName != null && !skFieldName.isEmpty();
@@ -355,6 +391,35 @@ public class JavaGenerator {
         String skCodeName = hasSortKey ? resolveKeyCodeName(schema, skFieldName) : null;
 
         ClassName localDateConverterClass = ClassName.get(pkg + ".converter", "LocalDateConverter");
+
+        // Build GSI/LSI annotation maps: fieldName -> list of index names
+        Map<String, List<String>> secondaryPartitionKeyIndexes = new HashMap<>();
+        Map<String, List<String>> secondarySortKeyIndexes = new HashMap<>();
+        if (tableMetadata != null) {
+            if (tableMetadata.globalSecondaryIndexes() != null) {
+                for (TableMetadata.GSIMetadata gsi : tableMetadata.globalSecondaryIndexes()) {
+                    if (gsi.partitionKey() != null) {
+                        secondaryPartitionKeyIndexes
+                            .computeIfAbsent(gsi.partitionKey(), k -> new ArrayList<>())
+                            .add(gsi.indexName());
+                    }
+                    if (gsi.sortKey() != null) {
+                        secondarySortKeyIndexes
+                            .computeIfAbsent(gsi.sortKey(), k -> new ArrayList<>())
+                            .add(gsi.indexName());
+                    }
+                }
+            }
+            if (tableMetadata.localSecondaryIndexes() != null) {
+                for (TableMetadata.LSIMetadata lsi : tableMetadata.localSecondaryIndexes()) {
+                    if (lsi.sortKey() != null) {
+                        secondarySortKeyIndexes
+                            .computeIfAbsent(lsi.sortKey(), k -> new ArrayList<>())
+                            .add(lsi.indexName());
+                    }
+                }
+            }
+        }
 
         // Generate standalone enum files for top-level string fields that carry enum values.
         for (BprintSchema.Field field : schema.fields) {
@@ -429,6 +494,7 @@ public class JavaGenerator {
         if (pkField != null && "timestamp.date".equals(pkField.type)) {
             pkGetter.addAnnotation(AnnotationSpec.builder(DYNAMO_DB_CONVERTED_BY).addMember("value", "$T.class", localDateConverterClass).build());
         }
+        addSecondaryIndexAnnotations(pkGetter, pkFieldName, secondaryPartitionKeyIndexes, secondarySortKeyIndexes);
         tb.addMethod(pkGetter.build());
 
         if (hasSortKey) {
@@ -449,6 +515,7 @@ public class JavaGenerator {
             if (skField != null && "timestamp.date".equals(skField.type)) {
                 skGetter.addAnnotation(AnnotationSpec.builder(DYNAMO_DB_CONVERTED_BY).addMember("value", "$T.class", localDateConverterClass).build());
             }
+            addSecondaryIndexAnnotations(skGetter, skFieldName, secondaryPartitionKeyIndexes, secondarySortKeyIndexes);
             tb.addMethod(skGetter.build());
         }
 
@@ -469,6 +536,7 @@ public class JavaGenerator {
                 getter.addAnnotation(AnnotationSpec.builder(DYNAMO_DB_CONVERTED_BY)
                     .addMember("value", "$T.class", localDateConverterClass).build());
             }
+            addSecondaryIndexAnnotations(getter, rf.field.name, secondaryPartitionKeyIndexes, secondarySortKeyIndexes);
             tb.addMethod(getter.build());
         }
 
@@ -779,17 +847,8 @@ public class JavaGenerator {
                     optionalClass, GET_ITEM_ENHANCED_REQUEST)
                 .build());
 
-            tb.addMethod(MethodSpec.methodBuilder("findByKey")
-                .addModifiers(Modifier.PUBLIC)
-                .addJavadoc("Find entity with projection (only fetch specified attributes).\n")
-                .addParameter(String.class, pkCodeName)
-                .addParameter(String.class, skCodeName)
-                .addParameter(listOfString, "attributesToProject")
-                .returns(optionalEntity)
-                .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
-                .addStatement("return $T.ofNullable(table.getItem($T.builder().key(key).attributesToProject(attributesToProject).build()))",
-                    optionalClass, GET_ITEM_ENHANCED_REQUEST)
-                .build());
+            // Projection is not directly supported on GetItemEnhancedRequest.
+            // Use the findByKey(GetItemEnhancedRequest) pass-through for advanced scenarios.
 
             tb.addMethod(MethodSpec.methodBuilder("deleteByKey")
                 .addModifiers(Modifier.PUBLIC)
@@ -835,13 +894,12 @@ public class JavaGenerator {
 
             tb.addMethod(MethodSpec.methodBuilder("existsByKey")
                 .addModifiers(Modifier.PUBLIC)
-                .addJavadoc("Check if entity exists by key (lightweight, uses projection).\n")
+                .addJavadoc("Check if entity exists by key.\n")
                 .addParameter(String.class, pkCodeName)
                 .addParameter(String.class, skCodeName)
                 .returns(boolean.class)
                 .addStatement("$T key = $T.key($L, $L)", KEY, keysClass, pkCodeName, skCodeName)
-                .addStatement("return table.getItem($T.builder().key(key).attributesToProject($S).build()) != null",
-                    GET_ITEM_ENHANCED_REQUEST, pkFieldName)
+                .addStatement("return table.getItem(key) != null")
                 .build());
         } else {
             tb.addMethod(MethodSpec.methodBuilder("findByKey")
@@ -864,16 +922,8 @@ public class JavaGenerator {
                     optionalClass, GET_ITEM_ENHANCED_REQUEST)
                 .build());
 
-            tb.addMethod(MethodSpec.methodBuilder("findByKey")
-                .addModifiers(Modifier.PUBLIC)
-                .addJavadoc("Find entity with projection (only fetch specified attributes).\n")
-                .addParameter(String.class, pkCodeName)
-                .addParameter(listOfString, "attributesToProject")
-                .returns(optionalEntity)
-                .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
-                .addStatement("return $T.ofNullable(table.getItem($T.builder().key(key).attributesToProject(attributesToProject).build()))",
-                    optionalClass, GET_ITEM_ENHANCED_REQUEST)
-                .build());
+            // Projection is not directly supported on GetItemEnhancedRequest.
+            // Use the findByKey(GetItemEnhancedRequest) pass-through for advanced scenarios.
 
             tb.addMethod(MethodSpec.methodBuilder("deleteByKey")
                 .addModifiers(Modifier.PUBLIC)
@@ -915,12 +965,11 @@ public class JavaGenerator {
 
             tb.addMethod(MethodSpec.methodBuilder("existsByKey")
                 .addModifiers(Modifier.PUBLIC)
-                .addJavadoc("Check if entity exists by key (lightweight, uses projection).\n")
+                .addJavadoc("Check if entity exists by key.\n")
                 .addParameter(String.class, pkCodeName)
                 .returns(boolean.class)
                 .addStatement("$T key = $T.key($L)", KEY, keysClass, pkCodeName)
-                .addStatement("return table.getItem($T.builder().key(key).attributesToProject($S).build()) != null",
-                    GET_ITEM_ENHANCED_REQUEST, pkFieldName)
+                .addStatement("return table.getItem(key) != null")
                 .build());
         }
 
@@ -1218,11 +1267,11 @@ public class JavaGenerator {
 
         addSortKeyRangeMethod(tb, "queryGreaterThan", "sortGreaterThan",
             pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
-        addSortKeyRangeMethod(tb, "queryGreaterThanOrEqualTo", "sortGreaterThanOrEqual",
+        addSortKeyRangeMethod(tb, "queryGreaterThanOrEqualTo", "sortGreaterThanOrEqualTo",
             pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
         addSortKeyRangeMethod(tb, "queryLessThan", "sortLessThan",
             pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
-        addSortKeyRangeMethod(tb, "queryLessThanOrEqualTo", "sortLessThanOrEqual",
+        addSortKeyRangeMethod(tb, "queryLessThanOrEqualTo", "sortLessThanOrEqualTo",
             pkType, skType, pkCodeName, pkExpr, skFieldName, entityClass, listOfEntity, schema);
     }
 
@@ -1347,13 +1396,13 @@ public class JavaGenerator {
             addIndexSortKeyRangeMethod(tb, methodName + "GreaterThan", "sortGreaterThan",
                 indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
                 entityClass, listOfEntity, indexType, schema);
-            addIndexSortKeyRangeMethod(tb, methodName + "GreaterThanOrEqualTo", "sortGreaterThanOrEqual",
+            addIndexSortKeyRangeMethod(tb, methodName + "GreaterThanOrEqualTo", "sortGreaterThanOrEqualTo",
                 indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
                 entityClass, listOfEntity, indexType, schema);
             addIndexSortKeyRangeMethod(tb, methodName + "LessThan", "sortLessThan",
                 indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
                 entityClass, listOfEntity, indexType, schema);
-            addIndexSortKeyRangeMethod(tb, methodName + "LessThanOrEqualTo", "sortLessThanOrEqual",
+            addIndexSortKeyRangeMethod(tb, methodName + "LessThanOrEqualTo", "sortLessThanOrEqualTo",
                 indexName, pkParamType, skParamType, pkParamName, pkKeyExpr, sortKey,
                 entityClass, listOfEntity, indexType, schema);
         }
@@ -1734,17 +1783,12 @@ public class JavaGenerator {
         ParameterizedTypeName listOfFieldError = ParameterizedTypeName.get(
             ClassName.get("java.util", "List"), fieldErrorClass);
 
-        boolean needsValidation = false;
-        for (BprintSchema.Field field : schema.fields) {
-            if (field.required || (!isCollectionType(field.type) && (hasFieldConstraints(field) || hasEnumValues(field)))) {
-                needsValidation = true;
-                break;
-            }
-        }
+        boolean needsValidation = needsValidationCheck(schema.fields);
 
         MethodSpec.Builder validateMethod = MethodSpec.methodBuilder("validate")
             .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
             .addJavadoc("Validate entity against .bprint schema rules (required, constraints, enum).\n")
+            .addJavadoc("Recursively validates nested objects and list items.\n")
             .addJavadoc("@param entity the entity to validate\n")
             .addJavadoc("@throws ChaimValidationException if any validations fail\n")
             .addParameter(entityClass, "entity");
@@ -1755,11 +1799,12 @@ public class JavaGenerator {
 
             for (BprintSchema.Field field : schema.fields) {
                 boolean isRequired = field.required;
+                String baseType = parseType(field.type)[0];
+                boolean isMap = "map".equals(baseType);
+                boolean isList = "list".equals(baseType);
                 boolean isCollection = isCollectionType(field.type);
                 boolean hasConstraints = !isCollection && hasFieldConstraints(field);
                 boolean hasEnum = !isCollection && hasEnumValues(field);
-
-                if (!isRequired && !hasConstraints && !hasEnum) continue;
 
                 String codeName = resolveCodeName(field);
                 String getterName = "get" + cap(codeName);
@@ -1775,11 +1820,24 @@ public class JavaGenerator {
                 // String and number constraint checks; enum type system enforces valid values at compile time.
                 if (hasConstraints && !hasEnumValues(field)) {
                     BprintSchema.Constraints c = field.constraints;
-                    if ("string".equals(parseType(field.type)[0])) {
+                    if ("string".equals(baseType)) {
                         addStringConstraintChecks(validateMethod, getterName, originalName, c, fieldErrorClass);
-                    } else if ("number".equals(parseType(field.type)[0])) {
+                    } else if ("number".equals(baseType)) {
                         addNumberConstraintChecks(validateMethod, getterName, originalName, c, fieldErrorClass, field.type);
                     }
+                }
+
+                // Recursively validate nested map fields
+                if (isMap && field.fields != null && !field.fields.isEmpty()) {
+                    addNestedMapValidation(validateMethod, field.fields,
+                        "entity." + getterName + "()", originalName, fieldErrorClass, entityName, 0);
+                }
+
+                // Validate list-of-map items
+                if (isList && field.items != null && "map".equals(field.items.type)
+                        && field.items.fields != null && !field.items.fields.isEmpty()) {
+                    addListItemValidation(validateMethod, field.items.fields,
+                        "entity." + getterName + "()", originalName, fieldErrorClass, entityName, 0);
                 }
             }
 
@@ -1901,6 +1959,280 @@ public class JavaGenerator {
             }
         }
 
+        method.endControlFlow();
+    }
+
+    /**
+     * Check if any field in the schema needs validation (top-level or nested).
+     */
+    private boolean needsValidationCheck(List<BprintSchema.Field> fields) {
+        for (BprintSchema.Field field : fields) {
+            if (field.required) return true;
+            if (!isCollectionType(field.type) && (hasFieldConstraints(field) || hasEnumValues(field))) return true;
+            if ("map".equals(parseType(field.type)[0]) && field.fields != null && needsNestedValidation(field.fields)) return true;
+            if ("list".equals(parseType(field.type)[0]) && field.items != null
+                    && "map".equals(field.items.type) && field.items.fields != null
+                    && needsNestedValidation(field.items.fields)) return true;
+        }
+        return false;
+    }
+
+    private static boolean needsNestedValidation(List<BprintSchema.NestedField> fields) {
+        for (BprintSchema.NestedField nf : fields) {
+            if (nf.required) return true;
+            if (nf.constraints != null) return true;
+            if ("map".equals(parseType(nf.type)[0]) && nf.fields != null && needsNestedValidation(nf.fields)) return true;
+            if ("list".equals(parseType(nf.type)[0]) && nf.items != null
+                    && "map".equals(nf.items.type) && nf.items.fields != null
+                    && needsNestedValidation(nf.items.fields)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Resolve code name for a nested field (same logic as resolveCodeName but for NestedField type).
+     */
+    private static String resolveNestedCodeName(BprintSchema.NestedField nf) {
+        if (nf.nameOverride != null && !nf.nameOverride.isEmpty()) return nf.nameOverride;
+        if (VALID_JAVA_IDENTIFIER.matcher(nf.name).matches()) return nf.name;
+        return toJavaCamelCase(nf.name);
+    }
+
+    /**
+     * Generate validation code for nested map fields.
+     * Wraps all sub-field checks in a null guard on the parent object.
+     */
+    private void addNestedMapValidation(MethodSpec.Builder method,
+            List<BprintSchema.NestedField> nestedFields, String parentAccessor,
+            String pathPrefix, ClassName fieldErrorClass, String entityName, int depth) {
+        String varName = "_v" + depth;
+        method.beginControlFlow("if ($L != null)", parentAccessor);
+        method.addStatement("var $L = $L", varName, parentAccessor);
+
+        for (BprintSchema.NestedField nf : nestedFields) {
+            String codeName = resolveNestedCodeName(nf);
+            String getterCall = varName + ".get" + cap(codeName) + "()";
+            String fieldPath = pathPrefix + "." + nf.name;
+            String baseType = parseType(nf.type)[0];
+
+            if (nf.required) {
+                method.beginControlFlow("if ($L == null)", getterCall)
+                    .addStatement("errors.add(new $T($S, $S, $S))",
+                        fieldErrorClass, fieldPath, "required", "is required but was null")
+                    .endControlFlow();
+            }
+
+            if (nf.constraints != null && !"map".equals(baseType) && !"list".equals(baseType)) {
+                if ("string".equals(baseType) && (nf.enumValues == null || nf.enumValues.isEmpty())) {
+                    addNestedStringConstraintChecks(method, getterCall, fieldPath, nf.constraints, fieldErrorClass);
+                } else if ("number".equals(baseType)) {
+                    addNestedNumberConstraintChecks(method, getterCall, fieldPath, nf.constraints, fieldErrorClass, nf.type);
+                }
+            }
+
+            if ("map".equals(baseType) && nf.fields != null && !nf.fields.isEmpty()) {
+                addNestedMapValidation(method, nf.fields, getterCall, fieldPath, fieldErrorClass, entityName, depth + 1);
+            }
+
+            if ("list".equals(baseType) && nf.items != null && "map".equals(nf.items.type)
+                    && nf.items.fields != null && !nf.items.fields.isEmpty()) {
+                addListItemValidation(method, nf.items.fields, getterCall, fieldPath, fieldErrorClass, entityName, depth + 1);
+            }
+        }
+
+        method.endControlFlow();
+    }
+
+    /**
+     * Generate validation code for list-of-map items.
+     * Iterates over the list and validates each item's nested fields.
+     */
+    private void addListItemValidation(MethodSpec.Builder method,
+            List<BprintSchema.NestedField> itemFields, String listAccessor,
+            String pathPrefix, ClassName fieldErrorClass, String entityName, int depth) {
+        String indexVar = "_i" + depth;
+        String itemVar = "_item" + depth;
+        method.beginControlFlow("if ($L != null)", listAccessor);
+        method.beginControlFlow("for (int $L = 0; $L < $L.size(); $L++)",
+            indexVar, indexVar, listAccessor, indexVar);
+        method.addStatement("var $L = $L.get($L)", itemVar, listAccessor, indexVar);
+
+        for (BprintSchema.NestedField nf : itemFields) {
+            String codeName = resolveNestedCodeName(nf);
+            String getterCall = itemVar + ".get" + cap(codeName) + "()";
+            String fieldPath = pathPrefix + "[\" + " + indexVar + " + \"]." + nf.name;
+            String baseType = parseType(nf.type)[0];
+
+            if (nf.required) {
+                method.beginControlFlow("if ($L == null)", getterCall)
+                    .addStatement("errors.add(new $T($S + $L + $S, $S, $S))",
+                        fieldErrorClass, pathPrefix + "[", indexVar, "]." + nf.name, "required", "is required but was null")
+                    .endControlFlow();
+            }
+
+            if (nf.constraints != null && !"map".equals(baseType) && !"list".equals(baseType)) {
+                if ("string".equals(baseType) && (nf.enumValues == null || nf.enumValues.isEmpty())) {
+                    addNestedStringConstraintChecksIndexed(method, getterCall,
+                        pathPrefix, indexVar, nf.name, nf.constraints, fieldErrorClass);
+                } else if ("number".equals(baseType)) {
+                    addNestedNumberConstraintChecksIndexed(method, getterCall,
+                        pathPrefix, indexVar, nf.name, nf.constraints, fieldErrorClass, nf.type);
+                }
+            }
+
+            if ("map".equals(baseType) && nf.fields != null && !nf.fields.isEmpty()) {
+                addNestedMapValidationInList(method, nf.fields, getterCall,
+                    pathPrefix, indexVar, nf.name, fieldErrorClass, entityName, depth + 1);
+            }
+        }
+
+        method.endControlFlow();
+        method.endControlFlow();
+    }
+
+    /**
+     * Validate nested map fields inside a list item (path includes array index).
+     */
+    private void addNestedMapValidationInList(MethodSpec.Builder method,
+            List<BprintSchema.NestedField> nestedFields, String parentAccessor,
+            String listPathPrefix, String indexVar, String fieldName,
+            ClassName fieldErrorClass, String entityName, int depth) {
+        String varName = "_v" + depth;
+        method.beginControlFlow("if ($L != null)", parentAccessor);
+        method.addStatement("var $L = $L", varName, parentAccessor);
+
+        for (BprintSchema.NestedField nf : nestedFields) {
+            String codeName = resolveNestedCodeName(nf);
+            String getterCall = varName + ".get" + cap(codeName) + "()";
+            String nestedPath = listPathPrefix + "[\" + " + indexVar + " + \"]." + fieldName + "." + nf.name;
+
+            if (nf.required) {
+                method.beginControlFlow("if ($L == null)", getterCall)
+                    .addStatement("errors.add(new $T($S + $L + $S, $S, $S))",
+                        fieldErrorClass, listPathPrefix + "[", indexVar, "]." + fieldName + "." + nf.name,
+                        "required", "is required but was null")
+                    .endControlFlow();
+            }
+        }
+
+        method.endControlFlow();
+    }
+
+    /**
+     * String constraint checks for nested fields (non-indexed path).
+     */
+    private void addNestedStringConstraintChecks(MethodSpec.Builder method, String getterCall,
+            String fieldPath, BprintSchema.Constraints c, ClassName fieldErrorClass) {
+        method.beginControlFlow("if ($L != null)", getterCall);
+        if (c.maxLength != null) {
+            method.beginControlFlow("if ($L.length() > $L)", getterCall, c.maxLength)
+                .addStatement("errors.add(new $T($S, $S, $S + $L.length()))",
+                    fieldErrorClass, fieldPath, "maxLength",
+                    "must have maximum length " + c.maxLength + ", got ", getterCall)
+                .endControlFlow();
+        }
+        if (c.minLength != null) {
+            method.beginControlFlow("if ($L.length() < $L)", getterCall, c.minLength)
+                .addStatement("errors.add(new $T($S, $S, $S + $L.length()))",
+                    fieldErrorClass, fieldPath, "minLength",
+                    "must have minimum length " + c.minLength + ", got ", getterCall)
+                .endControlFlow();
+        }
+        if (c.pattern != null) {
+            method.beginControlFlow("if (!$L.matches($S))", getterCall, c.pattern)
+                .addStatement("errors.add(new $T($S, $S, $S))",
+                    fieldErrorClass, fieldPath, "pattern",
+                    "must match pattern '" + c.pattern + "'")
+                .endControlFlow();
+        }
+        method.endControlFlow();
+    }
+
+    /**
+     * Number constraint checks for nested fields (non-indexed path).
+     */
+    private void addNestedNumberConstraintChecks(MethodSpec.Builder method, String getterCall,
+            String fieldPath, BprintSchema.Constraints c, ClassName fieldErrorClass, String fieldType) {
+        method.beginControlFlow("if ($L != null)", getterCall);
+        String[] parts = parseType(fieldType);
+        boolean isLong = "long".equals(parts[1]);
+        boolean isDouble = "double".equals(parts[1]);
+        boolean isIntegerFamily = !"decimal".equals(parts[1]) && !isDouble;
+        if (c.min != null) {
+            Object minLiteral = isLong ? (Object) c.min.longValue() : isIntegerFamily ? (Object) c.min.intValue() : c.min;
+            method.beginControlFlow("if ($L < $L)", getterCall, minLiteral)
+                .addStatement("errors.add(new $T($S, $S, $S + $L))",
+                    fieldErrorClass, fieldPath, "min", "must be >= " + minLiteral + ", got ", getterCall)
+                .endControlFlow();
+        }
+        if (c.max != null) {
+            Object maxLiteral = isLong ? (Object) c.max.longValue() : isIntegerFamily ? (Object) c.max.intValue() : c.max;
+            method.beginControlFlow("if ($L > $L)", getterCall, maxLiteral)
+                .addStatement("errors.add(new $T($S, $S, $S + $L))",
+                    fieldErrorClass, fieldPath, "max", "must be <= " + maxLiteral + ", got ", getterCall)
+                .endControlFlow();
+        }
+        method.endControlFlow();
+    }
+
+    /**
+     * String constraint checks for fields inside a list item (indexed path).
+     */
+    private void addNestedStringConstraintChecksIndexed(MethodSpec.Builder method, String getterCall,
+            String listPathPrefix, String indexVar, String fieldName,
+            BprintSchema.Constraints c, ClassName fieldErrorClass) {
+        method.beginControlFlow("if ($L != null)", getterCall);
+        if (c.maxLength != null) {
+            method.beginControlFlow("if ($L.length() > $L)", getterCall, c.maxLength)
+                .addStatement("errors.add(new $T($S + $L + $S, $S, $S + $L.length()))",
+                    fieldErrorClass, listPathPrefix + "[", indexVar, "]." + fieldName, "maxLength",
+                    "must have maximum length " + c.maxLength + ", got ", getterCall)
+                .endControlFlow();
+        }
+        if (c.minLength != null) {
+            method.beginControlFlow("if ($L.length() < $L)", getterCall, c.minLength)
+                .addStatement("errors.add(new $T($S + $L + $S, $S, $S + $L.length()))",
+                    fieldErrorClass, listPathPrefix + "[", indexVar, "]." + fieldName, "minLength",
+                    "must have minimum length " + c.minLength + ", got ", getterCall)
+                .endControlFlow();
+        }
+        if (c.pattern != null) {
+            method.beginControlFlow("if (!$L.matches($S))", getterCall, c.pattern)
+                .addStatement("errors.add(new $T($S + $L + $S, $S, $S))",
+                    fieldErrorClass, listPathPrefix + "[", indexVar, "]." + fieldName, "pattern",
+                    "must match pattern '" + c.pattern + "'")
+                .endControlFlow();
+        }
+        method.endControlFlow();
+    }
+
+    /**
+     * Number constraint checks for fields inside a list item (indexed path).
+     */
+    private void addNestedNumberConstraintChecksIndexed(MethodSpec.Builder method, String getterCall,
+            String listPathPrefix, String indexVar, String fieldName,
+            BprintSchema.Constraints c, ClassName fieldErrorClass, String fieldType) {
+        method.beginControlFlow("if ($L != null)", getterCall);
+        String[] parts = parseType(fieldType);
+        boolean isLong = "long".equals(parts[1]);
+        boolean isDouble = "double".equals(parts[1]);
+        boolean isIntegerFamily = !"decimal".equals(parts[1]) && !isDouble;
+        if (c.min != null) {
+            Object minLiteral = isLong ? (Object) c.min.longValue() : isIntegerFamily ? (Object) c.min.intValue() : c.min;
+            method.beginControlFlow("if ($L < $L)", getterCall, minLiteral)
+                .addStatement("errors.add(new $T($S + $L + $S, $S, $S + $L))",
+                    fieldErrorClass, listPathPrefix + "[", indexVar, "]." + fieldName, "min",
+                    "must be >= " + minLiteral + ", got ", getterCall)
+                .endControlFlow();
+        }
+        if (c.max != null) {
+            Object maxLiteral = isLong ? (Object) c.max.longValue() : isIntegerFamily ? (Object) c.max.intValue() : c.max;
+            method.beginControlFlow("if ($L > $L)", getterCall, maxLiteral)
+                .addStatement("errors.add(new $T($S + $L + $S, $S, $S + $L))",
+                    fieldErrorClass, listPathPrefix + "[", indexVar, "]." + fieldName, "max",
+                    "must be <= " + maxLiteral + ", got ", getterCall)
+                .endControlFlow();
+        }
         method.endControlFlow();
     }
 
@@ -2294,6 +2626,7 @@ public class JavaGenerator {
         }
         tb.addMethod(hashCodeMethod.build());
 
+        ClassName stringJoinerClass = ClassName.get("java.util", "StringJoiner");
         MethodSpec.Builder toStringMethod = MethodSpec.methodBuilder("toString")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
@@ -2301,19 +2634,13 @@ public class JavaGenerator {
         if (fields.isEmpty()) {
             toStringMethod.addStatement("return $S", className + "{}");
         } else {
-            StringBuilder tsExpr = new StringBuilder("return $S");
-            List<Object> tsArgs = new ArrayList<>();
-            tsArgs.add(className + "{" + fields.get(0).codeName + "=");
-            tsExpr.append(" + $L");
-            tsArgs.add(fields.get(0).codeName);
+            toStringMethod.addStatement("return new $T($S, $S, $S)", stringJoinerClass,
+                ",\n  ", className + "{\n  ", "\n}")
+                .addCode(".add($S + $L)\n", fields.get(0).codeName + "=", fields.get(0).codeName);
             for (int i = 1; i < fields.size(); i++) {
-                tsExpr.append(" + $S + $L");
-                tsArgs.add(", " + fields.get(i).codeName + "=");
-                tsArgs.add(fields.get(i).codeName);
+                toStringMethod.addCode(".add($S + $L)\n", fields.get(i).codeName + "=", fields.get(i).codeName);
             }
-            tsExpr.append(" + $S");
-            tsArgs.add("}");
-            toStringMethod.addStatement(tsExpr.toString(), tsArgs.toArray());
+            toStringMethod.addCode(".toString();\n");
         }
         tb.addMethod(toStringMethod.build());
     }

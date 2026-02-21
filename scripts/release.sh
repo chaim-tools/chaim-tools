@@ -12,12 +12,20 @@ set -euo pipefail
 #
 # Pipeline:
 #   Pre-flight  → check npm login, clean git tree, packages exist
-#   Phase 0     → build + test all packages on CURRENT code (no files touched)
+#   Detect      → diff each package against its last release tag; skip unchanged
+#   Phase 0     → build + test CHANGED packages on CURRENT code (no files touched)
 #   Confirm     → prompt user to proceed
 #   Phase 1     → bump versions + update cross-package deps in package.json
 #   Phase 2     → rebuild with bumped versions
 #   Phase 3     → npm publish (dependency order)
 #   Phase 4     → git commit + tag + push
+#
+# Version Bumping:
+#   - Uses git tags (e.g. @chaim-tools-chaim@1.2.3) to detect changes.
+#   - If no source files changed since the last release tag, the package is
+#     SKIPPED entirely — no bump, no build, no publish.
+#   - If the current local version was never published to npm, it publishes
+#     without bumping (assumes the version was set intentionally).
 #
 # Prerequisites:
 #   - npm login (run once — token persists in ~/.npmrc)
@@ -104,31 +112,70 @@ done
 ok "All packages found"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Compute versions (skip bump if current version isn't published yet)
+# Detect changes — diff each package against its last git release tag
 # ─────────────────────────────────────────────────────────────────────────────
 
-log "VERSIONS" "Checking npm registry and computing bumps..."
+log "DETECT" "Checking for changes since last release..."
+
+# Convert a scoped npm name to the tag prefix: @chaim-tools/chaim → @chaim-tools-chaim
+tag_prefix() { echo "$1" | sed 's|/|-|g'; }
 
 NEEDS_BUMP=()
+HAS_CHANGES=()
 PKG_NAMES=()
 OLD_VERS=()
 NEW_VERS=()
+SKIP_COUNT=0
+RELEASE_COUNT=0
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
   dir="${PKG_DIRS[$i]}"
   name=$(get_pkg_name "$dir")
   local_ver=$(get_pkg_ver "$dir")
+  prefix=$(tag_prefix "$name")
 
-  published_ver=$(npm view "$name@$local_ver" version 2>/dev/null || echo "")
+  # Find the most recent release tag for this package
+  last_tag=$(git tag --list "${prefix}@*" --sort=-v:refname | head -1 2>/dev/null || echo "")
 
-  if [[ -z "$published_ver" ]]; then
-    new="$local_ver"
-    NEEDS_BUMP+=("false")
-    echo -e "  ${CYAN}$name${NC}  $local_ver ${YELLOW}(not yet on npm — skipping bump)${NC}"
+  if [[ -z "$last_tag" ]]; then
+    # Never released — check npm as fallback
+    published_ver=$(npm view "$name@$local_ver" version 2>/dev/null || echo "")
+    if [[ -z "$published_ver" ]]; then
+      new="$local_ver"
+      NEEDS_BUMP+=("false")
+      HAS_CHANGES+=("true")
+      echo -e "  ${CYAN}$name${NC}  $local_ver ${YELLOW}(first release — no tag found, no bump)${NC}"
+      ((RELEASE_COUNT++))
+    else
+      new=$(bump_version "$local_ver" "$BUMP_TYPE")
+      NEEDS_BUMP+=("true")
+      HAS_CHANGES+=("true")
+      echo -e "  ${CYAN}$name${NC}  $local_ver → ${GREEN}$new${NC} ${YELLOW}(no release tag — will create one)${NC}"
+      ((RELEASE_COUNT++))
+    fi
   else
-    new=$(bump_version "$local_ver" "$BUMP_TYPE")
-    NEEDS_BUMP+=("true")
-    echo -e "  ${CYAN}$name${NC}  $local_ver → ${GREEN}$new${NC}"
+    # Tag exists — check if any files changed in this package since that tag
+    changes=$(git diff --name-only "$last_tag"..HEAD -- "$dir/" 2>/dev/null || echo "")
+    if [[ -z "$changes" ]]; then
+      new="$local_ver"
+      NEEDS_BUMP+=("false")
+      HAS_CHANGES+=("false")
+      echo -e "  ${CYAN}$name${NC}  $local_ver ${GREEN}(no changes since $last_tag — skipping)${NC}"
+      ((SKIP_COUNT++))
+    else
+      change_count=$(echo "$changes" | wc -l | tr -d ' ')
+      published_ver=$(npm view "$name@$local_ver" version 2>/dev/null || echo "")
+      if [[ -z "$published_ver" ]]; then
+        new="$local_ver"
+        NEEDS_BUMP+=("false")
+      else
+        new=$(bump_version "$local_ver" "$BUMP_TYPE")
+        NEEDS_BUMP+=("true")
+      fi
+      HAS_CHANGES+=("true")
+      echo -e "  ${CYAN}$name${NC}  $local_ver → ${GREEN}$new${NC} ($change_count file(s) changed since $last_tag)"
+      ((RELEASE_COUNT++))
+    fi
   fi
 
   PKG_NAMES+=("$name")
@@ -136,18 +183,27 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
   NEW_VERS+=("$new")
 done
 
+if [[ $RELEASE_COUNT -eq 0 ]]; then
+  echo -e "\n  ${GREEN}No packages have changes since their last release. Nothing to do.${NC}\n"
+  exit 0
+fi
+
+echo -e "\n  ${BOLD}$RELEASE_COUNT package(s) to release, $SKIP_COUNT unchanged.${NC}"
+
 if $DRY_RUN; then
   echo -e "\n  ${YELLOW}DRY RUN — no changes will be made${NC}\n"
   exit 0
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Phase 0: Validate — build + test on current code BEFORE any mutations
+# Phase 0: Validate — build + test CHANGED packages BEFORE any mutations
 # ─────────────────────────────────────────────────────────────────────────────
 
-log "VALIDATE" "Building and testing all packages on current code (no files modified yet)..."
+log "VALIDATE" "Building and testing changed packages (no files modified yet)..."
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
+  if [[ "${HAS_CHANGES[$i]}" == "false" ]]; then continue; fi
+
   dir="${PKG_DIRS[$i]}"
   name="${PKG_NAMES[$i]}"
   cd "$ROOT_DIR/$dir"
@@ -174,7 +230,7 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
   fi
 done
 
-ok "All packages build and pass tests"
+ok "All changed packages build and pass tests"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Confirm
@@ -192,6 +248,8 @@ echo ""
 log "BUMP" "Updating package.json files..."
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
+  if [[ "${HAS_CHANGES[$i]}" == "false" ]]; then continue; fi
+
   dir="${PKG_DIRS[$i]}"
   cd "$ROOT_DIR/$dir"
   if [[ "${NEEDS_BUMP[$i]}" == "true" ]]; then
@@ -226,9 +284,11 @@ ok "Cross-dependencies updated"
 # Phase 2: Rebuild with bumped versions
 # ─────────────────────────────────────────────────────────────────────────────
 
-log "REBUILD" "Rebuilding packages with updated versions..."
+log "REBUILD" "Rebuilding changed packages with updated versions..."
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
+  if [[ "${HAS_CHANGES[$i]}" == "false" ]]; then continue; fi
+
   dir="${PKG_DIRS[$i]}"
   name="${PKG_NAMES[$i]}"
   cd "$ROOT_DIR/$dir"
@@ -257,6 +317,8 @@ if [[ -n "$OTP_CODE" ]]; then
 fi
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
+  if [[ "${HAS_CHANGES[$i]}" == "false" ]]; then continue; fi
+
   dir="${PKG_DIRS[$i]}"
   name="${PKG_NAMES[$i]}"
   ver="${NEW_VERS[$i]}"
@@ -282,16 +344,24 @@ cd "$ROOT_DIR"
 
 RELEASE_MSG="release:"
 for i in $(seq 0 $((PKG_COUNT - 1))); do
-  RELEASE_MSG+=" ${PKG_NAMES[$i]}@${NEW_VERS[$i]}"
+  if [[ "${HAS_CHANGES[$i]}" == "true" ]]; then
+    RELEASE_MSG+=" ${PKG_NAMES[$i]}@${NEW_VERS[$i]}"
+  fi
 done
 
 git add -A
-git commit -m "$RELEASE_MSG"
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  git commit -m "$RELEASE_MSG"
+else
+  warn "No file changes to commit (versions may already match)"
+fi
 
 for i in $(seq 0 $((PKG_COUNT - 1))); do
+  if [[ "${HAS_CHANGES[$i]}" == "false" ]]; then continue; fi
   tag="${PKG_NAMES[$i]}@${NEW_VERS[$i]}"
   tag="${tag//\//-}"
-  git tag -a "$tag" -m "${PKG_NAMES[$i]}@${NEW_VERS[$i]}" 2>/dev/null || warn "Tag $tag exists"
+  git tag -a "$tag" -m "${PKG_NAMES[$i]}@${NEW_VERS[$i]}" 2>/dev/null || warn "Tag $tag already exists"
 done
 
 git push && git push --tags
@@ -304,9 +374,15 @@ ok "Pushed to origin with tags"
 log "DONE" "Release complete!"
 echo ""
 for i in $(seq 0 $((PKG_COUNT - 1))); do
-  echo -e "  ${GREEN}✓${NC} ${PKG_NAMES[$i]}@${NEW_VERS[$i]}"
+  if [[ "${HAS_CHANGES[$i]}" == "true" ]]; then
+    echo -e "  ${GREEN}✓${NC} ${PKG_NAMES[$i]}@${NEW_VERS[$i]} ${GREEN}(published)${NC}"
+  else
+    echo -e "  ${CYAN}–${NC} ${PKG_NAMES[$i]}@${OLD_VERS[$i]} ${CYAN}(unchanged, skipped)${NC}"
+  fi
 done
 echo ""
-echo -e "  Consumers can update with:"
-echo -e "  ${CYAN}npm update @chaim-tools/chaim @chaim-tools/chaim-bprint-spec @chaim-tools/cdk-lib${NC}"
-echo ""
+if [[ $RELEASE_COUNT -gt 0 ]]; then
+  echo -e "  Consumers can update with:"
+  echo -e "  ${CYAN}npm update @chaim-tools/chaim @chaim-tools/chaim-bprint-spec @chaim-tools/cdk-lib${NC}"
+  echo ""
+fi
