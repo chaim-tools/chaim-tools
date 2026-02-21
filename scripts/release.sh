@@ -13,6 +13,7 @@ set -euo pipefail
 # Pipeline:
 #   Pre-flight  → check npm login, clean git tree, packages exist
 #   Detect      → diff each package against its last release tag; skip unchanged
+#   Cascade     → if a dependency is releasing, mark its dependents for release too
 #   Phase 0     → build + test CHANGED packages on CURRENT code (no files touched)
 #   Confirm     → prompt user to proceed
 #   Phase 1     → bump versions + update cross-package deps in package.json
@@ -181,6 +182,37 @@ for i in $(seq 0 $((PKG_COUNT - 1))); do
   PKG_NAMES+=("$name")
   OLD_VERS+=("$local_ver")
   NEW_VERS+=("$new")
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cascade — if a dependency is releasing, its dependents must also release
+# ─────────────────────────────────────────────────────────────────────────────
+
+cascade_changed=true
+while $cascade_changed; do
+  cascade_changed=false
+  for i in $(seq 0 $((PKG_COUNT - 1))); do
+    if [[ "${HAS_CHANGES[$i]}" == "true" ]]; then continue; fi
+    pkg_json="$ROOT_DIR/${PKG_DIRS[$i]}/package.json"
+    for j in $(seq 0 $((PKG_COUNT - 1))); do
+      if [[ "${HAS_CHANGES[$j]}" == "false" ]]; then continue; fi
+      dep_name="${PKG_NAMES[$j]}"
+      is_dep=$(node -p "
+        const p = require('$pkg_json');
+        !!(p.dependencies?.['$dep_name'] || p.devDependencies?.['$dep_name'] || p.peerDependencies?.['$dep_name'])
+      " 2>/dev/null || echo "false")
+      if [[ "$is_dep" == "true" ]]; then
+        HAS_CHANGES[$i]="true"
+        NEEDS_BUMP[$i]="true"
+        NEW_VERS[$i]=$(bump_version "${OLD_VERS[$i]}" "$BUMP_TYPE")
+        echo -e "  ${CYAN}${PKG_NAMES[$i]}${NC}  ${OLD_VERS[$i]} → ${GREEN}${NEW_VERS[$i]}${NC} ${YELLOW}(cascade: depends on $dep_name)${NC}"
+        ((RELEASE_COUNT++))
+        ((SKIP_COUNT--))
+        cascade_changed=true
+        break
+      fi
+    done
+  done
 done
 
 if [[ $RELEASE_COUNT -eq 0 ]]; then
