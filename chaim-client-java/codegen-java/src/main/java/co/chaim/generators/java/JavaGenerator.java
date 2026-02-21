@@ -141,6 +141,10 @@ public class JavaGenerator {
         "software.amazon.awssdk.services.dynamodb", "DynamoDbClientBuilder");
     private static final ClassName REGION = ClassName.get(
         "software.amazon.awssdk.regions", "Region");
+    private static final ClassName AWS_CREDENTIALS_PROVIDER = ClassName.get(
+        "software.amazon.awssdk.auth.credentials", "AwsCredentialsProvider");
+    private static final ClassName PROFILE_CREDENTIALS_PROVIDER = ClassName.get(
+        "software.amazon.awssdk.auth.credentials", "ProfileCredentialsProvider");
 
     /**
      * Generate code for multiple schemas sharing the same DynamoDB table.
@@ -1524,6 +1528,8 @@ public class JavaGenerator {
         builderBuilder.addField(String.class, "tableName", Modifier.PRIVATE);
         builderBuilder.addField(String.class, "region", Modifier.PRIVATE);
         builderBuilder.addField(String.class, "endpoint", Modifier.PRIVATE);
+        builderBuilder.addField(String.class, "profile", Modifier.PRIVATE);
+        builderBuilder.addField(AWS_CREDENTIALS_PROVIDER, "credentialsProvider", Modifier.PRIVATE);
         builderBuilder.addField(DYNAMO_DB_ENHANCED_CLIENT, "existingClient", Modifier.PRIVATE);
 
         builderBuilder.addMethod(MethodSpec.methodBuilder("tableName")
@@ -1552,6 +1558,25 @@ public class JavaGenerator {
             .addStatement("return this")
             .build());
 
+        builderBuilder.addMethod(MethodSpec.methodBuilder("profile")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Use a named AWS credentials profile from ~/.aws/credentials.\n")
+            .addJavadoc("Useful for local development with multiple AWS accounts.\n")
+            .addParameter(String.class, "profile")
+            .returns(builderClass)
+            .addStatement("this.profile = profile")
+            .addStatement("return this")
+            .build());
+
+        builderBuilder.addMethod(MethodSpec.methodBuilder("credentialsProvider")
+            .addModifiers(Modifier.PUBLIC)
+            .addJavadoc("Use a custom credentials provider (SSO, assumed role, etc.).\n")
+            .addParameter(AWS_CREDENTIALS_PROVIDER, "credentialsProvider")
+            .returns(builderClass)
+            .addStatement("this.credentialsProvider = credentialsProvider")
+            .addStatement("return this")
+            .build());
+
         builderBuilder.addMethod(MethodSpec.methodBuilder("existingClient")
             .addModifiers(Modifier.PUBLIC)
             .addJavadoc("Use an existing client (for dependency injection).\n")
@@ -1567,12 +1592,17 @@ public class JavaGenerator {
             .beginControlFlow("if (existingClient != null)")
             .addStatement("return new $T(existingClient, tableName)", clientClass)
             .endControlFlow()
-            .addCode("\n// Check environment overrides\n")
+            .addCode("\n")
             .addStatement("String resolvedTable = resolve(tableName, \"CHAIM_TABLE_NAME\")")
             .addStatement("String resolvedRegion = resolve(region, \"AWS_REGION\", \"AWS_DEFAULT_REGION\")")
             .addStatement("String resolvedEndpoint = resolve(endpoint, \"DYNAMODB_ENDPOINT\")")
             .addCode("\n")
             .addStatement("$T ddbBuilder = $T.builder()", DYNAMO_DB_CLIENT_BUILDER, DYNAMO_DB_CLIENT)
+            .beginControlFlow("if (credentialsProvider != null)")
+            .addStatement("ddbBuilder.credentialsProvider(credentialsProvider)")
+            .nextControlFlow("else if (profile != null)")
+            .addStatement("ddbBuilder.credentialsProvider($T.create(profile))", PROFILE_CREDENTIALS_PROVIDER)
+            .endControlFlow()
             .beginControlFlow("if (resolvedRegion != null)")
             .addStatement("ddbBuilder.region($T.of(resolvedRegion))", REGION)
             .endControlFlow()
