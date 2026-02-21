@@ -68,10 +68,15 @@ export function findRepoConfigDir(startDir: string = process.cwd()): string | nu
  * Derive the effective Java source-root output directory for a given package.
  *
  * Rules (in priority order):
- *  1. Explicit `outputOverride` (e.g., `--output` CLI flag) — used as-is.
+ *  1. Explicit `outputOverride` (e.g., `--output` CLI flag) — resolved
+ *     relative to `process.cwd()`.
  *  2. Per-stack `javaRoot` from `chaim.json`.
  *  3. Top-level `generate.javaRoot` from `chaim.json`.
  *  4. Hard-coded Maven/Gradle default: `./src/main/java`.
+ *
+ * Config-sourced values (2–4) are resolved relative to the directory that
+ * contains `chaim.json`, NOT `process.cwd()`.  This ensures the output
+ * stays stable regardless of which subdirectory the user runs from.
  *
  * The returned path is the **Java source root**, NOT the full package path.
  * JavaPoet's `.writeTo()` automatically converts the `pkg` dots to
@@ -80,18 +85,26 @@ export function findRepoConfigDir(startDir: string = process.cwd()): string | nu
  * @param outputOverride   Value of the `--output` CLI flag (may be undefined).
  * @param perStackJavaRoot Per-stack `javaRoot` from `chaim.json` (may be undefined).
  * @param globalJavaRoot   Top-level `generate.javaRoot` from `chaim.json` (may be undefined).
+ * @param configDir        Directory containing `chaim.json` (may be undefined).
  * @returns Absolute path to use as the Java source root.
  */
 export function resolveJavaRoot(
   outputOverride?: string,
   perStackJavaRoot?: string,
-  globalJavaRoot?: string
+  globalJavaRoot?: string,
+  configDir?: string,
 ): string {
+  // CLI --output flag resolves relative to cwd (standard CLI behaviour)
+  if (outputOverride) {
+    return path.resolve(outputOverride);
+  }
+
   const raw =
-    outputOverride ??
     perStackJavaRoot ??
     globalJavaRoot ??
     './src/main/java';
 
-  return path.resolve(raw);
+  // Config-sourced values resolve relative to the chaim.json directory
+  const base = configDir ?? process.cwd();
+  return path.resolve(base, raw);
 }

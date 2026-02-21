@@ -22,6 +22,7 @@ import {
 import { resolveFieldNames, detectCollisions } from '../services/name-resolver';
 import {
   loadRepoConfig,
+  findRepoConfigDir,
   resolveJavaRoot,
 } from '../services/chaim-config-loader';
 import * as path from 'path';
@@ -50,6 +51,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
     // Load project-level chaim.json (if present)
     const repoConfig = loadRepoConfig();
     const generateConfig = repoConfig?.generate;
+    const configDir = findRepoConfigDir() ?? undefined;
 
     // Resolve and validate language (defaults to Java)
     const language = resolveLanguage(
@@ -111,6 +113,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           undefined,                    // no CLI override in config mode
           stackCfg.javaRoot,
           generateConfig.javaRoot,
+          configDir,
         ),
       }));
 
@@ -123,6 +126,7 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
           options.output,
           undefined,
           generateConfig?.javaRoot,
+          configDir,
         ),
       }];
 
