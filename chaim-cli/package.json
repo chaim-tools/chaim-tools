@@ -1,6 +1,6 @@
 {
   "name": "@chaim-tools/chaim",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "Schema-driven code generation tool for DynamoDB - Pure TypeScript CLI",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,7 +49,7 @@
   "dependencies": {
     "@aws-sdk/client-sts": "^3.883.0",
     "@chaim-tools/chaim-bprint-spec": "^0.2.10",
-    "@chaim-tools/client-java": "^0.1.17",
+    "@chaim-tools/client-java": "^0.1.18",
     "chalk": "^4.1.2",
     "commander": "^11.0.0",
     "ora": "^5.4.1"
