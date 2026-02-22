@@ -1,6 +1,6 @@
 {
   "name": "@chaim-tools/cdk-lib",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "AWS CDK v2 constructs for Chaim schema management",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
