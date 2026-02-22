@@ -682,6 +682,10 @@ export abstract class BaseChaimBinder extends Construct {
       properties: {
         ResourceId: this.resourceId,
         SnapshotFingerprint: this.snapshotFingerprint,
+        // CloudFormation resolves this token to the real ARN before invoking the
+        // Lambda. The handler reads event.ResourceProperties.TableArn to populate
+        // resource.id without any string construction or API calls.
+        TableArn: (this.dataStoreMetadata as any).tableArn,
       },
     });
   }
