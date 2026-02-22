@@ -95,6 +95,43 @@ function getPackageVersion(snapshotPayload) {
 }
 
 /**
+ * Resolve CDK token placeholders in the resource metadata block.
+ *
+ * At synth time, `resource.id` (the table ARN) is an unresolved CDK token
+ * like "${Token[TOKEN.61]}" because CloudFormation hasn't created the resource yet.
+ * At deploy time, the table name, region, and account ID are all known and fully
+ * resolved — we use them to construct the canonical ARN rather than carrying the
+ * token string into the published snapshot.
+ *
+ * @param {Object} payload - The snapshot payload (post internal-field removal)
+ * @returns {Object} resource metadata with token values replaced by real values
+ */
+function resolveResourceTokens(payload) {
+  const resource = payload.resource || {};
+
+  // Only attempt resolution for DynamoDB tables — extend this for other types as needed
+  if (resource.type !== 'dynamodb') {
+    return resource;
+  }
+
+  const tableName = resource.name;
+  const region = resource.region || payload.providerIdentity?.region;
+  const accountId = payload.providerIdentity?.accountId;
+
+  // Replace resource.id (table ARN) if it is still a CDK token
+  const currentId = resource.id || '';
+  const isToken = currentId.includes('${Token[') || currentId.includes('${AWS::');
+
+  if (isToken && tableName && region && accountId) {
+    const resolvedArn = `arn:aws:dynamodb:${region}:${accountId}:table/${tableName}`;
+    console.log(`Resolved resource.id token to: ${resolvedArn}`);
+    return { ...resource, id: resolvedArn };
+  }
+
+  return resource;
+}
+
+/**
  * Lambda handler entry point.
  */
 exports.handler = async (event, context) => {
@@ -156,24 +193,26 @@ exports.handler = async (event, context) => {
       // Build DELETE snapshot with enhanced metadata
       // Remove internal fields before publishing
       const { _schemaHash, _packageVersion, ...cleanPayload } = snapshotPayload;
-      
+
+      const resolvedResource = resolveResourceTokens(cleanPayload);
+      const resolvedResolution = {
+        ...cleanPayload.resolution,
+        mode: 'PUBLISHED',
+      };
+
       const deleteSnapshot = {
         ...cleanPayload,
+        resource: resolvedResource,
+        resolution: resolvedResolution,
         action: 'DELETE',
         schema: null, // Schema not needed for deletion
         capturedAt: deletedAt,
-        
-        // NEW: Add operation metadata
         operation,
-        
-        // NEW: Add delete metadata
         delete: {
           reason: deleteContext.reason,
           scope: deleteContext.scope,
           deletedAt,
         },
-        
-        // NEW: Add producer metadata
         producer,
       };
       
@@ -224,10 +263,23 @@ exports.handler = async (event, context) => {
     
     // Remove internal fields before publishing
     const { _schemaHash, _packageVersion, ...cleanPayload } = snapshotPayload;
-    
+
+    // Resolve token values that could not be known at synth time.
+    // At deploy time the table name, region, and accountId are all resolved —
+    // use them to construct the real table ARN rather than carrying a CDK token.
+    const resolvedResource = resolveResourceTokens(cleanPayload);
+
+    // Mark resolution as PUBLISHED now that we are running at deploy time.
+    const resolvedResolution = {
+      ...cleanPayload.resolution,
+      mode: 'PUBLISHED',
+    };
+
     // Add operation and producer metadata to snapshot
     const enhancedSnapshot = {
       ...cleanPayload,
+      resource: resolvedResource,
+      resolution: resolvedResolution,
       operation,
       producer,
     };
