@@ -334,8 +334,9 @@ exports.handler = async (event, context) => {
     // Schema version conflicts must always fail the deployment —
     // the developer needs to increment schema.schemaVersion.
     if (error.message?.includes('HTTP 409')) {
+      const detail = error.message.replace(/^HTTP 409:\s*/, '');
       throw new Error(
-        error.message.replace(/^HTTP 409:\s*/, '')
+        `${detail}. To fix: run "chaim bump <your-schema>.bprint" to increment the schema version, then redeploy.`
       );
     }
     
