@@ -416,6 +416,6 @@ echo ""
 if [[ $RELEASE_COUNT -gt 0 ]]; then
   echo -e "  Consumers can update with:"
   echo -e "  ${CYAN}npm install -g @chaim-tools/chaim@latest"
-  echo -e "  ${CYAN}npm update @chaim-tools/chaim-bprint-spec@latest @chaim-tools/cdk-lib@latest${NC}"
+  echo -e "  ${CYAN}npm install @chaim-tools/chaim-bprint-spec@latest @chaim-tools/cdk-lib@latest${NC}"
   echo ""
 fi

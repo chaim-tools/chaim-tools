@@ -214,6 +214,8 @@ exports.handler = async (event, context) => {
         appId: deleteSnapshot.identity?.appId || deleteSnapshot.appId || process.env.APP_ID,
         eventId,
         contentHash: deleteContentHash,
+        action: deleteSnapshot.action,
+        entityName: deleteSnapshot.identity?.entityName,
       });
       
       const { uploadUrl } = presignResponse;
@@ -309,6 +311,9 @@ exports.handler = async (event, context) => {
       appId: snapshotPayload.identity?.appId || snapshotPayload.appId || process.env.APP_ID,
       eventId,
       contentHash: enhancedSnapshot.hashes.contentHash,
+      action: enhancedSnapshot.action,
+      entityName: enhancedSnapshot.identity?.entityName,
+      schemaVersion: enhancedSnapshot.schema?.schemaVersion,
     });
     
     const { uploadUrl } = presignResponse;
@@ -325,6 +330,14 @@ exports.handler = async (event, context) => {
   } catch (error) {
     console.error('Ingestion error:', error.message);
     console.error('Stack trace:', error.stack);
+    
+    // Schema version conflicts must always fail the deployment —
+    // the developer needs to increment schema.schemaVersion.
+    if (error.message?.includes('HTTP 409')) {
+      throw new Error(
+        error.message.replace(/^HTTP 409:\s*/, '')
+      );
+    }
     
     if (failureMode === 'STRICT') {
       // STRICT mode: fail the CloudFormation deployment
@@ -415,12 +428,15 @@ async function getCredentials() {
  * - contentHash: SHA-256 hash with 'sha256:' prefix
  * - timestamp: ISO 8601 timestamp (must be within 5 minutes of server time)
  * - nonce: UUID v4 for replay protection
+ * - action: "UPSERT" or "DELETE" (enables schema version gate on the ingest service)
+ * - entityName: Entity type name, required when action is "UPSERT"
+ * - schemaVersion: Semantic version (major.minor), required when action is "UPSERT"
  * 
  * HMAC signature computed over the entire request body.
  * 
  * @returns {Object} { uploadUrl, s3Key, expiresAt }
  */
-async function postPresign({ apiBaseUrl, apiKey, apiSecret, appId, eventId, contentHash }) {
+async function postPresign({ apiBaseUrl, apiKey, apiSecret, appId, eventId, contentHash, action, entityName, schemaVersion }) {
   const url = `${apiBaseUrl}/ingest/presign`;
   
   // Generate nonce (UUID v4) for replay protection
@@ -435,11 +451,14 @@ async function postPresign({ apiBaseUrl, apiKey, apiSecret, appId, eventId, cont
     contentHash,
     timestamp,
     nonce,
+    action,
+    entityName,
+    schemaVersion,
   };
   
   const body = JSON.stringify(payload);
   
-  console.log('Presign request:', { appId, eventId, contentHash, timestamp, nonce });
+  console.log('Presign request:', { appId, eventId, contentHash, timestamp, nonce, action, entityName, schemaVersion });
   
   const responseText = await httpRequest({
     method: 'POST',
